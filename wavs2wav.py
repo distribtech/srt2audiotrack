@@ -8,26 +8,26 @@ import librosa
 import demucs.separate
 import shutil
 
-def extract_acomponiment_or_vocals(directory, subtitle_name, out_ukr_wav,
+def extract_accompaniment_or_vocals(directory, subtitle_name, out_ukr_wav,
         pipeline_suffix="_extracted.wav",
         model_demucs = "mdx_extra",
         sound_name="no_vocals.wav"
     ):
-    acomponiment = directory / f"{subtitle_name}{pipeline_suffix}"    
+    accompaniment = directory / f"{subtitle_name}{pipeline_suffix}"    
     model_folder = directory / model_demucs
     demucs_folder = model_folder / out_ukr_wav.stem
-    acomponiment_temp = demucs_folder / sound_name
+    accompaniment_temp = demucs_folder / sound_name
 
     demucs.separate.main(["--jobs", "4","-o", str(directory), "--two-stems", "vocals", "-n", model_demucs, str(out_ukr_wav)])
     
-    if acomponiment_temp.exists():
-        shutil.move(demucs_folder / sound_name, acomponiment)
+    if accompaniment_temp.exists():
+        shutil.move(demucs_folder / sound_name, accompaniment)
         shutil.rmtree(model_folder)
 
     # Verify the accompaniment exists and is valid
-    if not acomponiment.exists():
-        raise FileNotFoundError(f"Failed to extract accompaniment: {acomponiment}")
-    return acomponiment
+    if not accompaniment.exists():
+        raise FileNotFoundError(f"Failed to extract accompaniment: {accompaniment}")
+    return accompaniment
         
     
 

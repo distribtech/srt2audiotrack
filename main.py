@@ -9,10 +9,13 @@ import correct_times
 import wavs2wav
 import ffmpeg_commands
 import vocabular
-from wavs2wav import convert_mono_to_stereo, normalize_stereo_audio
+from wavs2wav import (
+    convert_mono_to_stereo,
+    normalize_stereo_audio,
+    extract_accompaniment_or_vocals,
+)
 from srt2csv import get_speakers_from_folder, check_texts, check_speeds_csv
 from vocabular import check_vocabular
-from wavs2wav import extract_acomponiment_or_vocals
 
 
 
@@ -70,18 +73,18 @@ def make_video_from(video_path, subtitle, speakers, default_speaker, vocabular_p
             command = ffmpeg_commands.extract_audio(video_path, out_ukr_wav) 
             ffmpeg_commands.run(command)
 
-        acomponiment = directory / f"{subtitle_name}_5.7_accompaniment_ukr.wav"
-        if not acomponiment.exists():
-            acomponiment_extracted = extract_acomponiment_or_vocals(directory, subtitle_name, out_ukr_wav)
-            normalize_stereo_audio(acomponiment_extracted, acomponiment)
-            os.remove(acomponiment_extracted)
+        accompaniment = directory / f"{subtitle_name}_5.7_accompaniment_ukr.wav"
+        if not accompaniment.exists():
+            accompaniment_extracted = extract_accompaniment_or_vocals(directory, subtitle_name, out_ukr_wav)
+            normalize_stereo_audio(accompaniment_extracted, accompaniment)
+            os.remove(accompaniment_extracted)
 
 
         output_audio = directory / f"{subtitle_name}_6_out_reduced_ukr.wav"
         if not output_audio.exists():
             volume_intervals = ffmpeg_commands.parse_volume_intervals(srt_csv_file)
             normalize_stereo_audio(out_ukr_wav, out_ukr_wav)
-            ffmpeg_commands.adjust_stereo_volume_with_librosa(out_ukr_wav, output_audio, volume_intervals, coef,acomponiment)
+            ffmpeg_commands.adjust_stereo_volume_with_librosa(out_ukr_wav, output_audio, volume_intervals, coef, accompaniment)
 
         # Make mix
         # mix_video = os.path.join(directory, f"{subtitle_name}_7_out_mix.mp4")

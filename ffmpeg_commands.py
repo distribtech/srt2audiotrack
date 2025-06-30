@@ -72,7 +72,7 @@ def adjust_volume_with_librosa(input_audio, output_audio, volume_intervals, k_vo
 
     print(f"Volume adjusted and saved to {output_audio}")
 
-def adjust_stereo_volume_with_librosa(input_audio, output_audio, volume_intervals, k_volume, acomponimemt):
+def adjust_stereo_volume_with_librosa(input_audio, output_audio, volume_intervals, k_volume, accompaniment):
     """
     Adjusts the volume of a stereo audio file using librosa.
 
@@ -83,7 +83,7 @@ def adjust_stereo_volume_with_librosa(input_audio, output_audio, volume_interval
     """
     # Load audio file with stereo channels
     y, sr = librosa.load(input_audio, sr=None, mono=False)
-    a, sr = librosa.load(acomponimemt, sr=None, mono=False)
+    a, sr = librosa.load(accompaniment, sr=None, mono=False)
 
     # Convert time to sample index
     for start_time, end_time in volume_intervals:
