@@ -24,6 +24,15 @@ In records\one_voice directory will be created videos with suffix "_mix_out.mp4"
 Result must be:
 https://fex.net/ru/s/fctovr0
 
+## Running tests
+
+Install the dependencies listed in `requirements.txt` and run the test suite
+with [pytest](https://pytest.org/):
+
+```bash
+pytest
+```
+
 ToDo:
 
 1. Make something with short not-generated segments.
