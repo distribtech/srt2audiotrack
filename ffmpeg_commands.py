@@ -153,9 +153,20 @@ def create_ffmpeg_mix_audio_file_command(audio_file_1, audio_file_2, output_audi
     return " ".join(ffmpeg_command)
 
 def run(command):
+    """Run an ffmpeg command using subprocess."""
     try:
         # Run the command using subprocess
-        result = subprocess.run(command, check=True) #, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run(
+            command,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
         print("FFmpeg command executed successfully.")
+        return True
     except subprocess.CalledProcessError as e:
         print("An error occurred while running FFmpeg:")
+        if e.stderr:
+            print(e.stderr)
+        return False
