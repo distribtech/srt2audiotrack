@@ -91,11 +91,31 @@ def make_video_from(video_path, subtitle, speakers, default_speaker, vocabular_p
             # command = " ".join(command)
             ffmpeg_commands.run(command)
 
-def fast_rglob(root_dir, extension, exclude_ext): # for network drives
+def fast_rglob(root_dir, extension, exclude_ext):  # for network drives
+    """Recursively find files matching ``extension`` under ``root_dir``.
+
+    Parameters
+    ----------
+    root_dir : str or Path
+        The directory tree to search.
+    extension : str
+        File extension to match (e.g., ``".srt"``).
+    exclude_ext : str
+        Suffix to exclude from results.
+
+    Returns
+    -------
+    list[str]
+        Paths to all matching files.
+
+    Notes
+    -----
+    ``pathlib.Path.rglob`` was noticeably slow on large network drives. This
+    helper relies on ``os.walk`` which performs better in that environment.
+    """
     ext = extension.lstrip('.')
     sbt_files = []
     for dirpath, _, filenames in os.walk(root_dir):
-        # print(dirpath,dirnames,filenames)
         for file in filenames:
             if file.endswith(f".{ext}") and not file.endswith(exclude_ext):
                 sbt_files.append(os.path.join(dirpath, file))
