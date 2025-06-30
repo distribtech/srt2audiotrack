@@ -153,22 +153,20 @@ def create_ffmpeg_mix_audio_file_command(audio_file_1, audio_file_2, output_audi
     return " ".join(ffmpeg_command)
 
 def run(command):
-    """Execute an FFmpeg command.
-
-    The ``command`` argument can be either a string or a list. If a string is
-    provided ``subprocess.run`` is executed with ``shell=True`` so that complex
-    commands are handled correctly.
-    """
-
+    """Run an ffmpeg command using subprocess."""
     try:
-        # Run the command using subprocess. ``shell=True`` is required when the
-        # command is provided as a string with spaces.
-        if isinstance(command, str):
-            result = subprocess.run(command, shell=True, check=True)
-        else:
-            result = subprocess.run(command, check=True)
+        # Run the command using subprocess
+        subprocess.run(
+            command,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
         print("FFmpeg command executed successfully.")
-        return result
+        return True
     except subprocess.CalledProcessError as e:
         print("An error occurred while running FFmpeg:")
-        print(e)
+        if e.stderr:
+            print(e.stderr)
+        return False
