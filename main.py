@@ -18,6 +18,103 @@ from srt2csv import get_speakers_from_folder, check_texts, check_speeds_csv
 from vocabular import check_vocabular
 
 
+def modify_subtitles(subtitle, vocabular_pth, directory):
+    subtitle_name = subtitle.stem
+    out_path = directory / f"{subtitle_name}_0_mod.srt"
+    if not out_path.exists():
+        vocabular.modify_subtitles_with_vocabular_wholefile(
+            subtitle, vocabular_pth, out_path
+        )
+    return out_path
+
+
+def convert_to_csv(out_path, directory, subtitle_name):
+    srt_csv_file = directory / f"{subtitle_name}_1.0_srt.csv"
+    if not srt_csv_file.exists():
+        srt2csv.srt_to_csv(out_path, srt_csv_file)
+    return srt_csv_file
+
+
+def prepare_csv_with_speeds(srt_csv_file, speakers, directory, subtitle_name):
+    output_csv_with_speakers = directory / f"{subtitle_name}_1.5_output_speakers.csv"
+    if not output_csv_with_speakers.exists():
+        srt2csv.add_speaker_columns(srt_csv_file, output_csv_with_speakers)
+
+    output_with_preview_speeds_csv = directory / f"{subtitle_name}_3.0_output_speed.csv"
+    if not output_with_preview_speeds_csv.exists():
+        srt2csv.add_speed_columns_with_speakers(
+            output_csv_with_speakers, speakers, output_with_preview_speeds_csv
+        )
+    return output_with_preview_speeds_csv
+
+
+def generate_audio_if_needed(output_csv, directory, speakers):
+    if not srt2audio.F5TTS.all_segments_in_folder_check(output_csv, directory):
+        f5tts = srt2audio.F5TTS()
+        default_speaker_name = speakers["default_speaker_name"]
+        default_speaker = speakers[default_speaker_name]
+        f5tts.generate_from_csv_with_speakers(
+            output_csv, directory, speakers, default_speaker, rewrite=False
+        )
+
+
+def correct_timings(directory, output_csv, subtitle_name):
+    corrected_csv = directory / f"{subtitle_name}_4_corrected_output_speed.csv"
+    if not corrected_csv.exists():
+        correct_times.correct_end_times_in_csv(
+            directory, output_csv, corrected_csv
+        )
+    return corrected_csv
+
+
+def build_audio_track(directory, corrected_csv, subtitle_name):
+    output_audio_file = directory / f"{subtitle_name}_5.0_output_audiotrack_eng.wav"
+    if not output_audio_file.exists():
+        wavs2wav.collect_full_audiotrack(directory, corrected_csv, output_audio_file)
+
+    stereo_eng_file = directory / f"{subtitle_name}_5.3_stereo_eng.wav"
+    if not stereo_eng_file.exists():
+        convert_mono_to_stereo(output_audio_file, stereo_eng_file)
+    return stereo_eng_file
+
+
+def handle_video(video_path, directory, subtitle_name, srt_csv_file, stereo_eng_file, coef):
+    if not os.path.exists(video_path):
+        return
+
+    out_ukr_wav = directory / f"{subtitle_name}_5.5_out_ukr.wav"
+    if not out_ukr_wav.exists():
+        match Path(video_path).suffix.lower():
+            case ".mp4" | ".mkv" | ".avi" | ".mov":
+                command = ffmpeg_commands.extract_audio(video_path, out_ukr_wav)
+                ffmpeg_commands.run(command)
+            case _:
+                raise ValueError(f"Unsupported video format: {video_path.suffix}")
+
+    accompaniment = directory / f"{subtitle_name}_5.7_accompaniment_ukr.wav"
+    if not accompaniment.exists():
+        accompaniment_extracted = extract_accompaniment_or_vocals(
+            directory, subtitle_name, out_ukr_wav
+        )
+        normalize_stereo_audio(accompaniment_extracted, accompaniment)
+        os.remove(accompaniment_extracted)
+
+    output_audio = directory / f"{subtitle_name}_6_out_reduced_ukr.wav"
+    if not output_audio.exists():
+        volume_intervals = ffmpeg_commands.parse_volume_intervals(srt_csv_file)
+        normalize_stereo_audio(out_ukr_wav, out_ukr_wav)
+        ffmpeg_commands.adjust_stereo_volume_with_librosa(
+            out_ukr_wav, output_audio, volume_intervals, coef, accompaniment
+        )
+
+    mix_video = directory.parent / f"{subtitle_name}_out_mix.mp4"
+    if not mix_video.exists():
+        command = ffmpeg_commands.create_ffmpeg_mix_video_file_command(
+            video_path, output_audio, stereo_eng_file, mix_video
+        )
+        ffmpeg_commands.run(command)
+
+
 
 def make_video_from(video_path, subtitle, speakers, default_speaker, vocabular_pth, coef):
     directory = subtitle.with_suffix("")
@@ -33,71 +130,22 @@ def make_video_from(video_path, subtitle, speakers, default_speaker, vocabular_p
         return
 
     try:
-        out_path = directory / f'{subtitle_name}_0_mod.srt'
-
-        # Modify subtitles using the vocabulary and put it in the filename_folder
-        if not out_path.exists():
-            vocabular.modify_subtitles_with_vocabular_wholefile(subtitle, vocabular_pth, out_path)
-
-        # Convert the modified subtitles to CSV
-        srt_csv_file = directory / f'{subtitle_name}_1.0_srt.csv'
-        if not srt_csv_file.exists():
-            srt2csv.srt_to_csv(out_path, srt_csv_file)
-
-        # Add column with speaker for audio
-        output_csv_with_speakers = directory / f'{subtitle_name}_1.5_output_speakers.csv'
-        if not output_csv_with_speakers.exists():
-            srt2csv.add_speaker_columns(srt_csv_file, output_csv_with_speakers)
-
-        output_with_preview_speeds_csv = directory / f'{subtitle_name}_3.0_output_speed.csv'
-        if not output_with_preview_speeds_csv.exists():
-            srt2csv.add_speed_columns_with_speakers(output_csv_with_speakers, speakers, output_with_preview_speeds_csv)
-
-        if not srt2audio.F5TTS.all_segments_in_folder_check(output_with_preview_speeds_csv, directory):
-            f5tts = srt2audio.F5TTS()
-            # Generate audio from CSV with varying speeds based on `speed_tts_closest`
-            default_speaker_name = speakers["default_speaker_name"]
-            default_speaker = speakers[default_speaker_name]
-            f5tts.generate_from_csv_with_speakers(output_with_preview_speeds_csv, directory, speakers, default_speaker, rewrite=False)
-
-        # Lets get correct time srt csv
-        corrected_time_output_speed_csv = directory / f"{subtitle_name}_4_corrected_output_speed.csv"
-        if not corrected_time_output_speed_csv.exists():
-            correct_times.correct_end_times_in_csv(directory, output_with_preview_speeds_csv, corrected_time_output_speed_csv)
-
-        # Make audiotrack
-        output_audio_file = directory / f"{subtitle_name}_5.0_output_audiotrack_eng.wav"
-        if not output_audio_file.exists():
-            wavs2wav.collect_full_audiotrack(directory, corrected_time_output_speed_csv, output_audio_file)
-
-        stereo_eng_file = directory / f"{subtitle_name}_5.3_stereo_eng.wav"
-        if not stereo_eng_file.exists():
-            convert_mono_to_stereo(output_audio_file, stereo_eng_file)
-
-        if os.path.exists(video_path):
-            out_ukr_wav = directory / f"{subtitle_name}_5.5_out_ukr.wav"
-            if not out_ukr_wav.exists():
-                # Save the audio output as a WAV file
-                command = ffmpeg_commands.extract_audio(video_path, out_ukr_wav)
-                ffmpeg_commands.run(command)
-
-            accompaniment = directory / f"{subtitle_name}_5.7_accompaniment_ukr.wav"
-            if not accompaniment.exists():
-                accompaniment_extracted = extract_accompaniment_or_vocals(directory, subtitle_name, out_ukr_wav)
-                normalize_stereo_audio(accompaniment_extracted, accompaniment)
-                os.remove(accompaniment_extracted)
-
-            output_audio = directory / f"{subtitle_name}_6_out_reduced_ukr.wav"
-            if not output_audio.exists():
-                volume_intervals = ffmpeg_commands.parse_volume_intervals(srt_csv_file)
-                normalize_stereo_audio(out_ukr_wav, out_ukr_wav)
-                ffmpeg_commands.adjust_stereo_volume_with_librosa(out_ukr_wav, output_audio, volume_intervals, coef, accompaniment)
-
-            # Make mix
-            mix_video = directory.parent / f"{subtitle_name}_out_mix.mp4"
-            if not mix_video.exists():
-                command = ffmpeg_commands.create_ffmpeg_mix_video_file_command(video_path, output_audio, stereo_eng_file, mix_video)
-                ffmpeg_commands.run(command)
+        out_path = modify_subtitles(subtitle, vocabular_pth, directory)
+        srt_csv_file = convert_to_csv(out_path, directory, subtitle_name)
+        output_with_preview_speeds_csv = prepare_csv_with_speeds(
+            srt_csv_file, speakers, directory, subtitle_name
+        )
+        generate_audio_if_needed(output_with_preview_speeds_csv, directory, speakers)
+        corrected_csv = correct_timings(directory, output_with_preview_speeds_csv, subtitle_name)
+        stereo_eng_file = build_audio_track(directory, corrected_csv, subtitle_name)
+        handle_video(
+            video_path,
+            directory,
+            subtitle_name,
+            srt_csv_file,
+            stereo_eng_file,
+            coef,
+        )
     finally:
         if lock_file.exists():
             os.remove(lock_file)
