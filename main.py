@@ -116,7 +116,7 @@ def handle_video(video_path, directory, subtitle_name, srt_csv_file, stereo_eng_
 
 
 
-def make_video_from(video_path, subtitle, speakers, default_speaker, vocabular_pth, coef):
+def make_video_from(video_path, subtitle, speakers, default_speaker, vocabular_pth, coef, progress_callback=None):
     directory = subtitle.with_suffix("")
     directory.mkdir(exist_ok=True)
     subtitle_name = subtitle.stem
@@ -130,14 +130,26 @@ def make_video_from(video_path, subtitle, speakers, default_speaker, vocabular_p
         return
 
     try:
+        def progress(p, msg):
+            if progress_callback:
+                progress_callback(p, msg)
+            print(f"[PROGRESS] {p} {msg}", flush=True)
+
+        progress(5, "modify subtitles")
         out_path = modify_subtitles(subtitle, vocabular_pth, directory)
+        progress(15, "convert csv")
         srt_csv_file = convert_to_csv(out_path, directory, subtitle_name)
+        progress(30, "prepare speeds")
         output_with_preview_speeds_csv = prepare_csv_with_speeds(
             srt_csv_file, speakers, directory, subtitle_name
         )
+        progress(50, "generate audio")
         generate_audio_if_needed(output_with_preview_speeds_csv, directory, speakers)
+        progress(65, "correct timings")
         corrected_csv = correct_timings(directory, output_with_preview_speeds_csv, subtitle_name)
+        progress(80, "build audio")
         stereo_eng_file = build_audio_track(directory, corrected_csv, subtitle_name)
+        progress(90, "handle video")
         handle_video(
             video_path,
             directory,
@@ -146,6 +158,7 @@ def make_video_from(video_path, subtitle, speakers, default_speaker, vocabular_p
             stereo_eng_file,
             coef,
         )
+        progress(100, "done")
     finally:
         if lock_file.exists():
             os.remove(lock_file)

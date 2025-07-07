@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>srt2audiotrack Web Interface</title>
+    <script>
+    function startTask(){
+        const subtitle = document.getElementById('subtitle').value;
+        fetch('/start', {method: 'POST', body: new URLSearchParams({subtitle})})
+            .then(r => r.json())
+            .then(_ => refresh());
+    }
+    function setWorkers(){
+        const workers = document.getElementById('workers').value;
+        fetch('/set_workers', {method: 'POST', body: new URLSearchParams({workers})});
+    }
+    function refresh(){
+        fetch('/tasks').then(r => r.json()).then(data => {
+            const tasksDiv = document.getElementById('tasks');
+            tasksDiv.innerHTML = '';
+            for(const id in data){
+                const t = data[id];
+                const div = document.createElement('div');
+                div.textContent = `${t.subtitle} [${t.status}] ${t.progress}%`;
+                tasksDiv.appendChild(div);
+            }
+            setTimeout(refresh, 1000);
+        });
+    }
+    document.addEventListener('DOMContentLoaded', refresh);
+    </script>
+</head>
+<body>
+    <h1>srt2audiotrack Web Interface</h1>
+    <div>
+        Subtitle folder: <input id="subtitle" value="records">
+        <button onclick="startTask()">Start</button>
+    </div>
+    <div>
+        Workers: <input id="workers" value="{{ workers }}">
+        <button onclick="setWorkers()">Set</button>
+    </div>
+    <h2>Tasks</h2>
+    <div id="tasks"></div>
+</body>
+</html>
