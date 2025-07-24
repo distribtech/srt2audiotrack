@@ -1,6 +1,11 @@
 import sys
 import types
+from pathlib import Path
 import pytest
+
+# Ensure project root is on the path so local modules can be imported when
+# running `pytest` from any location.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 # Provide a dummy soundfile module if it's missing so that correct_times can be imported
 if 'soundfile' not in sys.modules:
