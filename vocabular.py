@@ -55,23 +55,32 @@ def modify_subtitles_with_vocabular_wholefile_even_partishally(subtitle_path, vo
     return text
 
 def modify_subtitles_with_vocabular_wholefile(subtitle_path, vocabular_path, output_path):
+    """Apply replacements only to subtitle text lines.
+
+    Replacements are performed on full words only. Timestamp and index lines
+    remain untouched so that subtitle formatting is preserved.
+    """
+
     replacements = parse_vocabular_file(vocabular_path)
 
-    with open(subtitle_path, 'r', encoding='utf-8') as infile:
-        text = infile.read()
+    time_re = re.compile(r"\d{2}:\d{2}:\d{2}[,.]\d{3} --> \d{2}:\d{2}:\d{2}[,.]\d{3}")
 
-    # Use regular expressions with word boundaries (\b)
-    for old, new in replacements:
-        # Escape 'old' to avoid special regex characters
-        old_escaped = re.escape(old)
-        # Build the pattern: \bOLD\b ensures we only match full words
-        pattern = rf"\b{old_escaped}\b"
-        text = re.sub(pattern, new, text)
+    def apply(text: str) -> str:
+        for old, new in replacements:
+            pattern = rf"(?<!\w){re.escape(old)}(?!\w)"
+            text = re.sub(pattern, new, text)
+        return text
 
-    with open(output_path, 'w', encoding='utf-8') as outfile:
-        outfile.write(text)
+    with open(subtitle_path, 'r', encoding='utf-8') as infile, \
+         open(output_path, 'w', encoding='utf-8') as outfile:
+        for line in infile:
+            stripped = line.strip()
+            if stripped.isdigit() or time_re.match(stripped) or stripped == "":
+                outfile.write(line)
+            else:
+                outfile.write(apply(line))
 
-    return text
+    return output_path
 
 def apply_replacements(line, replacements):
     """
@@ -80,7 +89,8 @@ def apply_replacements(line, replacements):
     longer strings get replaced first.
     """
     for old, new in replacements:
-        line = line.replace(old, new)
+        pattern = rf"(?<!\w){re.escape(old)}(?!\w)"
+        line = re.sub(pattern, new, line)
     return line
 
 def modify_subtitles_with_vocabular(subtitle_path, vocabular_path, output_path):
@@ -91,9 +101,15 @@ def modify_subtitles_with_vocabular(subtitle_path, vocabular_path, output_path):
     # Get the replacements
     replacements = parse_vocabular_file(vocabular_path)
 
+    time_re = re.compile(r"\d{2}:\d{2}:\d{2}[,.]\d{3} --> \d{2}:\d{2}:\d{2}[,.]\d{3}")
+
     with open(subtitle_path, 'r', encoding='utf-8') as infile, \
          open(output_path, 'w', encoding='utf-8') as outfile:
         for line in infile:
-            # Apply the replacements on the current line
-            new_line = apply_replacements(line, replacements)
-            outfile.write(new_line)
+            stripped = line.strip()
+            if stripped.isdigit() or time_re.match(stripped) or stripped == "":
+                outfile.write(line)
+            else:
+                new_line = apply_replacements(line, replacements)
+                outfile.write(new_line)
+
