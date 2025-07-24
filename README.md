@@ -16,10 +16,12 @@ pip install f5-tts
 then install demucs (https://github.com/adefossez/demucs)
 python -m pip install -U demucs
 
-3. Run:
-python main.py --subtitle records\one_voice
+3. Run the web interface:
+python web_app.py
 
-In records\one_voice directory will be created videos with suffix "_mix_out.mp4"
+Open your browser at http://localhost:5000. Use the **Advanced** tab to adjust
+all parameters that were available in the console version. Output videos will be
+created in the selected folder with the specified suffix.
 
 Result must be:
 https://fex.net/ru/s/fctovr0
