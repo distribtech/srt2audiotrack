@@ -3,10 +3,31 @@
 <head>
     <meta charset="utf-8">
     <title>srt2audiotrack Web Interface</title>
+    <style>
+    .tab { display: none; }
+    .tab-active { display: block; }
+    </style>
     <script>
+    function showTab(id){
+        document.getElementById('basic').classList.remove('tab-active');
+        document.getElementById('advanced').classList.remove('tab-active');
+        document.getElementById(id).classList.add('tab-active');
+    }
     function startTask(){
-        const subtitle = document.getElementById('subtitle').value;
-        fetch('/start', {method: 'POST', body: new URLSearchParams({subtitle})})
+        const params = {
+            subtitle: document.getElementById('subtitle').value,
+            speeds: document.getElementById('speeds').value,
+            delay: document.getElementById('delay').value,
+            voice: document.getElementById('voice').value,
+            text: document.getElementById('text').value,
+            coef: document.getElementById('coef').value,
+            videoext: document.getElementById('videoext').value,
+            srtext: document.getElementById('srtext').value,
+            outfileending: document.getElementById('outfileending').value,
+            vocabular: document.getElementById('vocabular').value,
+            config: document.getElementById('config').value,
+        };
+        fetch('/start', {method: 'POST', body: new URLSearchParams(params)})
             .then(r => r.json())
             .then(_ => refresh());
     }
@@ -33,8 +54,24 @@
 <body>
     <h1>srt2audiotrack Web Interface</h1>
     <div>
+        <button onclick="showTab('basic')">Basic</button>
+        <button onclick="showTab('advanced')">Advanced</button>
+    </div>
+    <div id="basic" class="tab tab-active">
         Subtitle folder: <input id="subtitle" value="records">
         <button onclick="startTask()">Start</button>
+    </div>
+    <div id="advanced" class="tab">
+        <div>speeds: <input id="speeds" value="speeds.csv"></div>
+        <div>delay: <input id="delay" value="0.00001"></div>
+        <div>voice: <input id="voice" value="basic_ref_en.wav"></div>
+        <div>text: <input id="text" value="some call me nature, others call me mother nature."></div>
+        <div>coef: <input id="coef" value="0.2"></div>
+        <div>videoext: <input id="videoext" value=".mp4"></div>
+        <div>srtext: <input id="srtext" value=".srt"></div>
+        <div>outfileending: <input id="outfileending" value="_out_mix.mp4"></div>
+        <div>vocabular: <input id="vocabular" value="vocabular.txt"></div>
+        <div>config: <input id="config" value="basic.toml"></div>
     </div>
     <div>
         Workers: <input id="workers" value="{{ workers }}">
