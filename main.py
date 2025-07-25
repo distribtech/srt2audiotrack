@@ -34,6 +34,8 @@ def main():
     parser.add_argument('--config', "-c", type=str, help="Config file", default="basic.toml")
     # Add acomponiment coeficient
     parser.add_argument('--acomponiment_coef', type=float, help="Acomponiment coeficient", default=0.3)
+    # Add voice coeficient
+    parser.add_argument('--voice_coef', type=float, help="Voice coeficient", default=0.2)
     # Add output folder
     parser.add_argument('--output_folder', type=str, help="Output folder", default="")
 
@@ -51,6 +53,7 @@ def main():
     outfileending = args.outfileending
     vocabular = args.vocabular
     acomponiment_coef = args.acomponiment_coef
+    voice_coef = args.voice_coef
     output_folder = args.output_folder #It must be done in future. Now output file in the same directory than input file
 
     print(f"Processing folder: {subtitle}")
