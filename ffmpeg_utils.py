@@ -4,7 +4,6 @@ import librosa
 import soundfile as sf
 import numpy as np
 from sync_utils import time_to_seconds
-ACOMPANIMENT_K = 0.3
 
 # Read CSV file to get volume reduction time intervals
 def parse_volume_intervals(csv_file):
@@ -28,7 +27,7 @@ def extract_audio(input_video, output_audio):  #, volume_intervals, k_volume):
 
 
 
-def adjust_stereo_volume_with_librosa(input_audio, output_audio, volume_intervals, k_volume, acomponimemt):
+def adjust_stereo_volume_with_librosa(input_audio, output_audio, volume_intervals, acomponimemt, acomponiment_coef, voice_coef=0.2):
     """
     Adjusts the volume of a stereo audio file using librosa.
 
@@ -48,7 +47,7 @@ def adjust_stereo_volume_with_librosa(input_audio, output_audio, volume_interval
         end_sample = int(librosa.time_to_samples(float(end_time), sr=sr))
 
         # Apply volume adjustment in the given range for both channels
-        y[:, start_sample:end_sample] =  y[:, start_sample:end_sample] * k_volume + a[:, start_sample:end_sample]*(1-k_volume)*ACOMPANIMENT_K
+        y[:, start_sample:end_sample] =  y[:, start_sample:end_sample] * voice_coef + a[:, start_sample:end_sample]*(1-voice_coef)*acomponiment_coef
 
     # Save the modified audio
     sf.write(output_audio, y.T, sr)  # Transpose y to match the expected shape for stereo
@@ -65,12 +64,6 @@ def create_ffmpeg_mix_video_file_command(video_file, audio_file_1, audio_file_2,
         " -filter_complex", "[1:a][2:a]amix=inputs=2:duration=first[aout]",
         "-map", "0:v", "-map", "[aout]", "-c:v", "copy", "-c:a", "aac", "-b:a", "320k", "-ar", "44100", f"\"{output_video}\""
     ]
-    # ffmpeg_command = [
-    #     "ffmpeg", "-y", "-i", f'"{video_file}"', "-i", f'"{audio_file_1}"', "-i", f'"{audio_file_2}"',
-    #     " -filter_complex", "[1:a][2:a]amix=inputs=2:duration=first[aout]",
-    #     "-map", "0:v", "-map", "[aout]", "-c:v", "copy", "-c:a", "aac", "-b:a", "320k", "-ar", "44100", f'"{output_video}"'
-    # ]
-
 
     return " ".join(ffmpeg_command)
 

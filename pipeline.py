@@ -108,7 +108,7 @@ def process_video_file(
         volume_intervals = ffmpeg_utils.parse_volume_intervals(srt_csv_file)
         normalize_stereo_audio(out_ukr_wav, out_ukr_wav)
         ffmpeg_utils.adjust_stereo_volume_with_librosa(
-            out_ukr_wav, output_audio, volume_intervals, coef, acomponiment
+            out_ukr_wav, output_audio, volume_intervals, acomponiment,  coef
         )
 
     ext = Path(video_path).suffix.lower()
@@ -133,6 +133,7 @@ def create_video_with_english_audio(
     default_speaker: dict,
     vocabular_pth: Path,
     coef: float,
+    output_folder: Path,
 ):
     directory, subtitle_name, out_path = prepare_subtitles(subtitle, vocabular_pth)
     srt_csv_file, stereo_eng_file = subtitles_to_audio(

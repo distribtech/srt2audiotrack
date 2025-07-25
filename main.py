@@ -22,8 +22,6 @@ def main():
     parser.add_argument('--voice', type=str, help="Path to voice", default="basic_ref_en.wav")
     # Add text
     parser.add_argument('--text', type=str, help="Path to text for voice", default="some call me nature, others call me mother nature.")
-    # Add voice coeficient
-    parser.add_argument('--coef', type=float, help="Voice coeficient", default=0.2)
     # Add video extension
     parser.add_argument('--videoext', type=str, help="Video extension of video files", default=".mp4")
     # Add subtitles extension
@@ -34,6 +32,10 @@ def main():
     parser.add_argument('--vocabular', type=str, help="Vocabular of transcriptions", default="vocabular.txt")
     # Add config
     parser.add_argument('--config', "-c", type=str, help="Config file", default="basic.toml")
+    # Add acomponiment coeficient
+    parser.add_argument('--acomponiment_coef', type=float, help="Acomponiment coeficient", default=0.3)
+    # Add output folder
+    parser.add_argument('--output_folder', type=str, help="Output folder", default="")
 
     # Parse the arguments
     args = parser.parse_args()
@@ -44,11 +46,12 @@ def main():
     delay = args.delay
     voice = args.voice
     text = args.text
-    coef = args.coef
     videoext = args.videoext
     srtext = args.srtext
     outfileending = args.outfileending
     vocabular = args.vocabular
+    acomponiment_coef = args.acomponiment_coef
+    output_folder = args.output_folder #It must be done in future. Now output file in the same directory than input file
 
     print(f"Processing folder: {subtitle}")
 
@@ -74,7 +77,12 @@ def main():
         ready_video_file_name = subtitle.stem + "_out_mix.mp4"
         ready_video_path = video_path.parent / ready_video_file_name
         if video_path.is_file() and not ready_video_path.is_file():
-            create_video_with_english_audio(video_path, subtitle, speakers, default_speaker, vocabular_pth, coef)
+            create_video_with_english_audio(video_path, 
+                                            subtitle, 
+                                            speakers, default_speaker, 
+                                            vocabular_pth, 
+                                            acomponiment_coef, 
+                                            output_folder)
 
 
 
