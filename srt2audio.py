@@ -16,9 +16,6 @@ import re
 import srt2csv
 import difflib
 
-COUNTER_MAX = 10
-REMOVE_SILENCE_TOP_DB = 35
-# DEFAULT_SPEED = 1.3
 
 from f5_tts.infer.utils_infer import (
     hop_length,
@@ -102,7 +99,8 @@ class F5TTS:
               cross_fade_duration=0.15, sway_sampling_coef=-1, cfg_strength=2, nfe_step=32, speed=1.0,
               fix_duration=None, 
               remove_silence=True, # to start from start
-              file_wave=None, seed=-1):
+              file_wave=None, seed=-1,
+              remove_silence_top_db=35):
         if seed == -1:
             seed = random.randint(0, sys.maxsize)
         seed_everything(seed)
@@ -130,7 +128,7 @@ class F5TTS:
         )
 
         if remove_silence:
-            trimmed, index = librosa.effects.trim(wav, top_db=REMOVE_SILENCE_TOP_DB)
+            trimmed, index = librosa.effects.trim(wav, top_db=remove_silence_top_db)
             print(f"Trimmed from {file_wave} from sample {index[0]} to {index[1]}")
             wav = trimmed
             
@@ -201,11 +199,9 @@ class F5TTS:
         )
         return wav, sr, len(wav) / sr 
 
-    def generate_wav_if_longer(self, wav, sr, gen_text, duration, previous_duration, previous_speed, ref_file, ref_text, i):
-        # if len(gen_text.split()) < MIN_NUMBER_OF_WORDS:
-        #     # previous_speed = DEFAULT_SPEED
-        #     wav, sr, previous_duration = self.infer_wav(gen_text, previous_speed, ref_file, ref_text,file_wave=f"segment_{i}_speed_{previous_speed}.wav")
-        #     return wav,sr, previous_duration
+    def generate_wav_if_longer(self, wav, sr, gen_text, duration, previous_duration, previous_speed, 
+                                ref_file, ref_text, i, 
+                                counter_max=10):
         counter = 0
         start_speed = previous_speed + 0.1
         while duration < previous_duration:  
@@ -228,7 +224,7 @@ class F5TTS:
             previous_duration = len(wav) / sr
             previous_speed = next_speed
             counter += 1
-            if counter > COUNTER_MAX:
+            if counter > counter_max:
                 wav, sr,previous_duration = self.infer_wav(gen_text, start_speed, ref_file, ref_text)
                 break
         return wav, sr, previous_duration
