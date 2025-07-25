@@ -33,7 +33,7 @@ def adjust_stereo_volume_with_librosa(
     volume_intervals,
     acomponiment,
     acomponiment_coef,
-    voice_coef=0.2,
+    voice_coef,
 ):
     """
     Adjusts the volume of a stereo audio file using librosa.
