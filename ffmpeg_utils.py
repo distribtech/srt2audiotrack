@@ -1,8 +1,8 @@
 import csv
-import subprocess
+import ffmpeg
 import librosa
-import soundfile as sf
 import numpy as np
+import soundfile as sf
 from sync_utils import time_to_seconds
 
 # Read CSV file to get volume reduction time intervals
@@ -17,13 +17,14 @@ def parse_volume_intervals(csv_file):
     return volume_intervals
 
 # Create the ffmpeg command to reduce volume in specified intervals
-def extract_audio(input_video, output_audio):  #, volume_intervals, k_volume):
-    ffmpeg_command = (
-        f'ffmpeg -y -i "{input_video}" '
-        f'-c:a pcm_s16le "{output_audio}"'
-    )
+def extract_audio(input_video, output_audio):
+    """Create an FFmpeg command to extract raw audio from ``input_video``."""
 
-    return ffmpeg_command
+    return (
+        ffmpeg.input(str(input_video))
+        .output(str(output_audio), acodec="pcm_s16le")
+        .overwrite_output()
+    )
 
 
 
@@ -66,21 +67,34 @@ def adjust_stereo_volume_with_librosa(
 
 # Create the ffmpeg command to mix two audio files
 def create_ffmpeg_mix_video_file_command(video_file, audio_file_1, audio_file_2, output_video):
-    # Build the full ffmpeg command to mix two audio files
-    # The `-shortest` flag ensures that the length is taken from the shortest input, i.e., the first audio file.
-    ffmpeg_command = [
-        "ffmpeg", "-y", "-i", f"\"{video_file}\"", "-i", f"\"{audio_file_1}\"", "-i", f"\"{audio_file_2}\"",
-        " -filter_complex", "[1:a][2:a]amix=inputs=2:duration=first[aout]",
-        "-map", "0:v", "-map", "[aout]", "-c:v", "copy", "-c:a", "aac", "-b:a", "320k", "-ar", "44100", f"\"{output_video}\""
-    ]
+    """Create an FFmpeg command that mixes two audio files into ``video_file``."""
 
-    return " ".join(ffmpeg_command)
+    video = ffmpeg.input(str(video_file))
+    a1 = ffmpeg.input(str(audio_file_1))
+    a2 = ffmpeg.input(str(audio_file_2))
+
+    mixed = ffmpeg.filter([a1, a2], "amix", inputs=2, duration="first")
+
+    return (
+        ffmpeg.output(
+            video.video,
+            mixed,
+            str(output_video),
+            vcodec="copy",
+            acodec="aac",
+            audio_bitrate="320k",
+            ar=44100,
+        ).overwrite_output()
+    )
 
 
 def run(command):
+    """Execute a prepared FFmpeg command."""
+
     try:
-        # Run the command using subprocess
-        result = subprocess.run(command, check=True) #, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        ffmpeg.run(command)
         print("FFmpeg command executed successfully.")
-    except subprocess.CalledProcessError as e:
+    except ffmpeg.Error as e:
         print("An error occurred while running FFmpeg:")
+        if e.stderr:
+            print(e.stderr.decode())
