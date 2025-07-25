@@ -1,15 +1,10 @@
 import csv
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
-import csv
 import srt
-from datetime import timedelta
 from pathlib import Path
-import srt2audio
-
-
-DELAY = 0.0005 # Lets connect everything with less than DELAY  seconds 
+import tts_audio
 
 def format_timedelta(td: timedelta) -> str:
     """
@@ -25,12 +20,6 @@ def format_timedelta(td: timedelta) -> str:
 
 
 
-def calculate_duration(start, end):
-    time_format = '%H:%M:%S,%f'
-    start_dt = datetime.strptime(start, time_format)
-    end_dt = datetime.strptime(end, time_format)
-    duration = (end_dt - start_dt).total_seconds()
-    return duration
 
 def srt_to_csv(srt_file, csv_file):
     def fallback_parse_srt(srt_text):
@@ -99,85 +88,6 @@ def srt_to_csv(srt_file, csv_file):
             writer.writerow([sub.index, start_str, end_str, duration, symbol_duration, text])
             print("\t".join(map(str, [sub.index, start_str, end_str, duration, symbol_duration, text])))
 
-def srt_to_csv_with_full_sentences(csv_file, full_csv_file, delay_min=DELAY):
-    rows = []
-    with open(csv_file, 'r', encoding='utf-8') as input_file:
-        reader = csv.DictReader(input_file)
-        
-        current_text = ""
-        current_start_time = None
-        current_end_time = None
-
-        for row in reader:
-            start_time = row['Start Time']
-            end_time = row['End Time']
-            duration = float(row['Duration'])
-            symbol_duration = float(row['Symbol Duration'])
-            text = row['Text']
-
-            if current_end_time:
-                end_dt = datetime.strptime(current_end_time, '%H:%M:%S,%f')
-                start_dt = datetime.strptime(start_time, '%H:%M:%S,%f')
-                delay = (start_dt - end_dt).total_seconds()
-                print(f"delay = (start_dt={start_dt} - end_dt={end_dt}).total_seconds() = {delay}")
-
-                if delay <= delay_min:
-                    print(f"delay = {delay} <= {delay_min} = delay_min")
-                    current_text += " " + text
-                    current_end_time = end_time
-                    continue
-
-            if current_text:
-                combined_duration = calculate_duration(current_start_time, current_end_time)
-                combined_symbol_duration = combined_duration / len(current_text) if len(current_text) > 0 else 0
-                rows.append([current_start_time, current_end_time, combined_duration, combined_symbol_duration, current_text])
-
-            current_text = text
-            current_start_time = start_time
-            current_end_time = end_time
-
-        if current_text:
-            combined_duration = calculate_duration(current_start_time, current_end_time)
-            combined_symbol_duration = combined_duration / len(current_text) if len(current_text) > 0 else 0
-            rows.append([current_start_time, current_end_time, combined_duration, combined_symbol_duration, current_text])
-
-    with open(full_csv_file, 'w', newline='', encoding='utf-8') as output_file:
-        writer = csv.writer(output_file, quoting=csv.QUOTE_ALL)
-        writer.writerow(['Start Time', 'End Time', 'Duration', 'Symbol Duration', 'Text'])
-        writer.writerows(rows)
-
-def find_closest_from_floor(symbol_duration, speed_df):
-    # Filter for rows where `symbol_duration` is less than or equal to the target
-    filtered_df = speed_df[speed_df['symbol_duration'] <= symbol_duration]
-    
-    if not filtered_df.empty:
-        # Return the closest matching row from below or exact match
-        closest_index = (symbol_duration - filtered_df['symbol_duration']).idxmin()
-    else:
-        # If no smaller or equal value exists, return the closest available (smallest higher)
-        closest_index = (speed_df['symbol_duration'] - symbol_duration).abs().idxmin()
-        
-    return speed_df.loc[closest_index]
-
-def add_speed_columns(output_csv, speed_csv, output_speed_csv):
-    speed_df = pd.read_csv(speed_csv)
-    
-    with open(output_csv, 'r', encoding='utf-8') as input_file, open(output_speed_csv, 'w', newline='', encoding='utf-8') as output_file:
-        reader = csv.DictReader(input_file)
-        fieldnames = reader.fieldnames[:-1] + ['tts_symbol_duration', 'speed_tts_closest', 'Text']
-        writer = csv.DictWriter(output_file, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
-        writer.writeheader()
-
-        for row in reader:
-            symbol_duration = float(row['Symbol Duration'])
-            closest_match = find_closest_from_floor(symbol_duration, speed_df)
-
-            row['tts_symbol_duration'] = closest_match['symbol_duration']
-            row['speed_tts_closest'] = closest_match['speed']
-            # row['file_name_tts'] = closest_match['file_name']
-            
-            writer.writerow(row)
-            print("\t".join(map(str, row.values())))
 
 
 def add_speaker_columns(input_csv, output_csv, speakers=[]):
@@ -299,7 +209,7 @@ def check_speeds_csv(voice_dir):
 
         speeds_file = Path(voice_dir) / Path(sound_file).stem / "speeds.csv"
         if not speeds_file.is_file():
-            srt2audio.F5TTS().generate_speeds_csv(speeds_file, text, sound_file)
+            tts_audio.F5TTS().generate_speeds_csv(speeds_file, text, sound_file)
     print("All speeds.csv are OK!")
 
 def take_first(dct):

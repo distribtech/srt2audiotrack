@@ -1,8 +1,8 @@
 import argparse
 from pathlib import Path
-from srt2csv import get_speakers_from_folder, check_texts, check_speeds_csv
-from vocabular import check_vocabular
-from processing import make_video_from, fast_rglob
+from subtitle_csv import get_speakers_from_folder, check_texts, check_speeds_csv
+from vocabulary import check_vocabular
+from pipeline import create_video_with_english_audio, list_subtitle_files
 
 
 def main():
@@ -64,7 +64,7 @@ def main():
         exit(1)
     default_speaker = speakers.get(speakers["default_speaker_name"])
 
-    sbt_files = fast_rglob(subtitle, srtext, exclude_ext="_0_mod.srt")
+    sbt_files = list_subtitle_files(subtitle, srtext, exclude_ext="_0_mod.srt")
     # we need exclude srt modified files that we used for right pronunciation
     if Path(subtitle).is_file():
         sbt_files = [subtitle]
@@ -74,7 +74,7 @@ def main():
         ready_video_file_name = subtitle.stem + "_out_mix.mp4"
         ready_video_path = video_path.parent / ready_video_file_name
         if video_path.is_file() and not ready_video_path.is_file():
-            make_video_from(video_path, subtitle, speakers, default_speaker, vocabular_pth, coef)
+            create_video_with_english_audio(video_path, subtitle, speakers, default_speaker, vocabular_pth, coef)
 
 
 

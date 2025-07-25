@@ -11,9 +11,9 @@ from omegaconf import OmegaConf
 from importlib.resources import files
 from hydra.utils import get_class
 import librosa
-from wav2txt import wav2txt
+from stt import wav2txt
 import re
-import srt2csv
+import subtitle_csv
 import difflib
 
 
@@ -301,7 +301,7 @@ class F5TTS:
         excel_file_name = excel_file_name.split("_3.0_")[0] + ".xlsx"
         parent_of_parent = os.path.dirname(os.path.dirname(filename_errors_csv))
         excel_file = os.path.join(parent_of_parent, excel_file_name)
-        srt2csv.csv2excel(filename_errors_csv, excel_file)                    
+        subtitle_csv.csv2excel(filename_errors_csv, excel_file)
         print(f"All audio segments generated and saved in {output_folder}")
 
 
