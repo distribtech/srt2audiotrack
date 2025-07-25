@@ -2,7 +2,10 @@ import argparse
 from pathlib import Path
 from subtitle_csv import get_speakers_from_folder, check_texts, check_speeds_csv
 from vocabulary import check_vocabular
-from pipeline import create_video_with_english_audio, list_subtitle_files
+from pipeline import (
+    list_subtitle_files,
+    SubtitlePipeline,
+)
 
 
 def main():
@@ -80,13 +83,16 @@ def main():
         ready_video_file_name = subtitle.stem + "_out_mix.mp4"
         ready_video_path = video_path.parent / ready_video_file_name
         if video_path.is_file() and not ready_video_path.is_file():
-            create_video_with_english_audio(video_path,
-                                            subtitle,
-                                            speakers, default_speaker,
-                                            vocabular_pth,
-                                            acomponiment_coef,
-                                            voice_coef,
-                                            output_folder)
+            pipeline = SubtitlePipeline(
+                subtitle,
+                vocabular_pth,
+                speakers,
+                default_speaker,
+                acomponiment_coef,
+                voice_coef,
+                output_folder,
+            )
+            pipeline.run(video_path)
 
 
 
