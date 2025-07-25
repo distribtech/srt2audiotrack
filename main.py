@@ -2,10 +2,7 @@ import argparse
 from pathlib import Path
 from subtitle_csv import get_speakers_from_folder, check_texts, check_speeds_csv
 from vocabulary import check_vocabular
-from pipeline import (
-    list_subtitle_files,
-    SubtitlePipeline,
-)
+from pipeline import SubtitlePipeline
 
 
 def main():
@@ -73,7 +70,9 @@ def main():
         exit(1)
     default_speaker = speakers.get(speakers["default_speaker_name"])
 
-    sbt_files = list_subtitle_files(subtitle, srtext, exclude_ext="_0_mod.srt")
+    sbt_files = SubtitlePipeline.list_subtitle_files(
+        subtitle, srtext, exclude_ext="_0_mod.srt"
+    )
     # we need exclude srt modified files that we used for right pronunciation
     if Path(subtitle).is_file():
         sbt_files = [subtitle]

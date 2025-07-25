@@ -28,7 +28,9 @@ def test_prepare_subtitles_creates_in_output_folder(tmp_path):
     vocab.write_text("")
     out_dir = tmp_path / "out"
 
-    directory, name, out_path = pipeline.prepare_subtitles(subtitle, vocab, out_dir)
+    directory, name, out_path = pipeline.SubtitlePipeline.prepare_subtitles(
+        subtitle, vocab, out_dir
+    )
 
     assert name == "sample"
     assert directory == out_dir / "sample"
@@ -53,10 +55,14 @@ def test_create_video_with_english_audio_passes_output_folder(tmp_path, monkeypa
     def fake_process_video_file(video_path_arg, directory, subtitle_name, srt_csv_file, stereo_eng_file, acomponiment_coef, voice_coef):
         calls["procdir"] = directory
 
-    monkeypatch.setattr(pipeline, "subtitles_to_audio", fake_subtitles_to_audio)
-    monkeypatch.setattr(pipeline, "process_video_file", fake_process_video_file)
+    monkeypatch.setattr(
+        pipeline.SubtitlePipeline, "subtitles_to_audio", staticmethod(fake_subtitles_to_audio)
+    )
+    monkeypatch.setattr(
+        pipeline.SubtitlePipeline, "process_video_file", staticmethod(fake_process_video_file)
+    )
 
-    pipeline.create_video_with_english_audio(
+    pipeline.SubtitlePipeline.create_video_with_english_audio(
         str(video),
         subtitle,
         speakers,
@@ -96,9 +102,15 @@ def test_subtitle_pipeline_run_uses_output_folder(tmp_path, monkeypatch):
     def fake_process_video_file(video_path_arg, directory, subtitle_name, srt_csv_file, stereo_eng_file, acomp, voice):
         calls["video"] = directory
 
-    monkeypatch.setattr(pipeline, "prepare_subtitles", fake_prepare_subtitles)
-    monkeypatch.setattr(pipeline, "subtitles_to_audio", fake_subtitles_to_audio)
-    monkeypatch.setattr(pipeline, "process_video_file", fake_process_video_file)
+    monkeypatch.setattr(
+        pipeline.SubtitlePipeline, "prepare_subtitles", staticmethod(fake_prepare_subtitles)
+    )
+    monkeypatch.setattr(
+        pipeline.SubtitlePipeline, "subtitles_to_audio", staticmethod(fake_subtitles_to_audio)
+    )
+    monkeypatch.setattr(
+        pipeline.SubtitlePipeline, "process_video_file", staticmethod(fake_process_video_file)
+    )
 
     sp = pipeline.SubtitlePipeline(
         subtitle,
