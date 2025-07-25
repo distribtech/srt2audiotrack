@@ -29,13 +29,16 @@ Run the main script by providing a folder that contains videos and matching `.sr
 ```bash
 python main.py --subtitle records\one_voice
 ```
-The processed videos will be saved in the same folder with the suffix `_out_mix.mp4`.
+The processed videos will be saved in the folder specified by `--output_folder`
+(or next to the subtitles if not provided) with the suffix `_out_mix.mp4`.
 
 ### Command line options
 - `--subtitle` – path to a folder or a single subtitle file.
 - `--videoext` – extension of the video files (default: `.mp4`).
 - `--srtext` – extension of subtitle files (default: `.srt`).
 - `--coef` – volume mix coefficient for the original audio (default: `0.2`).
+- `--output_folder` – directory where all intermediate and result files will be
+  stored.
 
 Run `python main.py -h` to see all available options.
 

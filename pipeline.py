@@ -16,10 +16,15 @@ from audio_utils import (
 )
 
 
-def prepare_subtitles(subtitle: Path, vocabular_pth: Path):
-    """Apply vocabulary corrections and return helper paths."""
-    directory = subtitle.with_suffix("")
-    directory.mkdir(exist_ok=True)
+def prepare_subtitles(subtitle: Path, vocabular_pth: Path, output_folder: Path):
+    """Apply vocabulary corrections and return helper paths.
+
+    All intermediate files are written inside ``output_folder`` under a
+    subdirectory named after the subtitle file stem.
+    """
+
+    directory = Path(output_folder) / subtitle.stem
+    directory.mkdir(parents=True, exist_ok=True)
     subtitle_name = subtitle.stem
     out_path = directory / f"{subtitle_name}_0_mod.srt"
 
@@ -135,7 +140,7 @@ def create_video_with_english_audio(
     coef: float,
     output_folder: Path,
 ):
-    directory, subtitle_name, out_path = prepare_subtitles(subtitle, vocabular_pth)
+    directory, subtitle_name, out_path = prepare_subtitles(subtitle, vocabular_pth, output_folder)
     srt_csv_file, stereo_eng_file = subtitles_to_audio(
         directory, subtitle_name, out_path, speakers, default_speaker
     )
