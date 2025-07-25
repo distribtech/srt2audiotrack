@@ -172,3 +172,68 @@ def list_subtitle_files(root_dir: str | Path, extension: str, exclude_ext: str):
                 sbt_files.append(os.path.join(dirpath, file))
     return sbt_files
 
+
+class SubtitlePipeline:
+    """Encapsulates the workflow for processing one subtitle/video pair."""
+
+    def __init__(
+        self,
+        subtitle: Path,
+        vocabular: Path,
+        speakers: dict,
+        default_speaker: dict,
+        acomponiment_coef: float,
+        voice_coef: float,
+        output_folder: Path,
+    ) -> None:
+        self.subtitle = Path(subtitle)
+        self.vocabular = Path(vocabular)
+        self.speakers = speakers
+        self.default_speaker = default_speaker
+        self.acomponiment_coef = acomponiment_coef
+        self.voice_coef = voice_coef
+        self.output_folder = Path(output_folder)
+
+        self.directory: Path | None = None
+        self.subtitle_name: str | None = None
+        self.out_path: Path | None = None
+        self.srt_csv_file: Path | None = None
+        self.stereo_eng_file: Path | None = None
+
+    def prepare(self) -> None:
+        self.directory, self.subtitle_name, self.out_path = prepare_subtitles(
+            self.subtitle,
+            self.vocabular,
+            self.output_folder,
+        )
+
+    def generate_audio(self) -> None:
+        assert self.directory is not None and self.subtitle_name is not None and self.out_path is not None
+        self.srt_csv_file, self.stereo_eng_file = subtitles_to_audio(
+            self.directory,
+            self.subtitle_name,
+            self.out_path,
+            self.speakers,
+            self.default_speaker,
+        )
+
+    def process_video(self, video_path: str) -> None:
+        assert self.directory is not None
+        assert self.subtitle_name is not None
+        assert self.srt_csv_file is not None and self.stereo_eng_file is not None
+        process_video_file(
+            video_path,
+            self.directory,
+            self.subtitle_name,
+            self.srt_csv_file,
+            self.stereo_eng_file,
+            self.acomponiment_coef,
+            self.voice_coef,
+        )
+
+    def run(self, video_path: str) -> None:
+        self.prepare()
+        self.generate_audio()
+        self.process_video(video_path)
+
+

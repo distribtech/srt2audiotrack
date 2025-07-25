@@ -15,6 +15,7 @@ def _stub(*args, **kwargs):
 audio_stub.convert_mono_to_stereo = _stub
 audio_stub.normalize_stereo_audio = _stub
 audio_stub.extract_acomponiment_or_vocals = _stub
+audio_stub.adjust_stereo_volume_with_librosa = _stub
 sys.modules['audio_utils'] = audio_stub
 sys.modules['vocabulary'] = vocabulary
 
@@ -69,3 +70,49 @@ def test_create_video_with_english_audio_passes_output_folder(tmp_path, monkeypa
     expected = out_dir / subtitle.stem
     assert calls["subdir"] == expected
     assert calls["procdir"] == expected
+
+
+def test_subtitle_pipeline_run_uses_output_folder(tmp_path, monkeypatch):
+    video = tmp_path / "video.mp4"
+    video.write_text("vid")
+    subtitle = tmp_path / "sample.srt"
+    subtitle.write_text("1\n00:00:00,000 --> 00:00:01,000\nhello\n")
+    vocab = tmp_path / "vocab.txt"
+    vocab.write_text("")
+    speakers = {"default_speaker_name": "spk", "spk": {"ref_text": "", "ref_file": ""}}
+    default_speaker = speakers["spk"]
+    out_dir = tmp_path / "out"
+
+    calls = {}
+
+    def fake_prepare_subtitles(subtitle_arg, vocab_arg, folder_arg):
+        calls["prep"] = folder_arg / subtitle.stem
+        return calls["prep"], subtitle.stem, Path("dummy.srt")
+
+    def fake_subtitles_to_audio(directory, subtitle_name, out_path, speakers_arg, default_speaker_arg):
+        calls["audio"] = directory
+        return Path("dummy.csv"), Path("dummy.wav")
+
+    def fake_process_video_file(video_path_arg, directory, subtitle_name, srt_csv_file, stereo_eng_file, acomp, voice):
+        calls["video"] = directory
+
+    monkeypatch.setattr(pipeline, "prepare_subtitles", fake_prepare_subtitles)
+    monkeypatch.setattr(pipeline, "subtitles_to_audio", fake_subtitles_to_audio)
+    monkeypatch.setattr(pipeline, "process_video_file", fake_process_video_file)
+
+    sp = pipeline.SubtitlePipeline(
+        subtitle,
+        vocab,
+        speakers,
+        default_speaker,
+        0.1,
+        0.2,
+        out_dir,
+    )
+
+    sp.run(str(video))
+
+    expected = out_dir / subtitle.stem
+    assert calls["prep"] == expected
+    assert calls["audio"] == expected
+    assert calls["video"] == expected
