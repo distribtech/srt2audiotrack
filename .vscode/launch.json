@@ -1,0 +1,22 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File (Conda)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "python": "C:\\Users\\Admin\\.conda\\envs\\f5-tts-demucs\\python.exe",
+            "args": [
+                "--subtitle",
+                "records/one_voice",
+                "-c",
+                "basic.toml"    
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        }
+    ]
+}
