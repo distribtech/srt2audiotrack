@@ -1,19 +1,8 @@
 import argparse
-import os
 from pathlib import Path
-
-
-import srt2csv
-import srt2audio
-import correct_times
-import wavs2wav
-import ffmpeg_commands
-import vocabular
-from wavs2wav import convert_mono_to_stereo, normalize_stereo_audio
 from srt2csv import get_speakers_from_folder, check_texts, check_speeds_csv
 from vocabular import check_vocabular
-from wavs2wav import extract_acomponiment_or_vocals
-from processing import modify_subtitles, convert_to_csv, handle_video, make_video_from, fast_rglob
+from processing import make_video_from, fast_rglob
 
 
 
@@ -80,7 +69,7 @@ def main():
 
     sbt_files = fast_rglob(subtitle, srtext, exclude_ext="_0_mod.srt")
     # we need exclude srt modified files that we used for right pronunciation
-    if subtitle.is_file():
+    if Path(subtitle).is_file():
         sbt_files = [subtitle]
     for subtitle in sbt_files:
         subtitle = Path(subtitle)
