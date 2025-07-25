@@ -5,9 +5,6 @@ from vocabular import check_vocabular
 from processing import make_video_from, fast_rglob
 
 
-
-
-
 def main():
     # Initialize the argument parser
     parser = argparse.ArgumentParser(description="Script that processes a subtitle file")
