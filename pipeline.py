@@ -12,7 +12,7 @@ import vocabulary
 from audio_utils import (
     convert_mono_to_stereo,
     normalize_stereo_audio,
-    extract_acomponiment_or_vocals,
+    extract_acomponiment_or_vocals, adjust_stereo_volume_with_librosa
 )
 
 
@@ -113,7 +113,7 @@ def process_video_file(
     if not output_audio.exists():
         volume_intervals = ffmpeg_utils.parse_volume_intervals(srt_csv_file)
         normalize_stereo_audio(out_ukr_wav, out_ukr_wav)
-        ffmpeg_utils.adjust_stereo_volume_with_librosa(
+        adjust_stereo_volume_with_librosa(
             out_ukr_wav,
             output_audio,
             volume_intervals,

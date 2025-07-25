@@ -43,4 +43,4 @@ The processed videos will be saved in the folder specified by `--output_folder`
 Run `python main.py -h` to see all available options.
 
 ## Notes
-The `VOICE` subfolder should contain reference speaker audio files together with their texts and generated `speeds.csv` files. See `records/one_voice` for an example structure.
+The `VOICE` subfolder should contain reference speaker audio files together with their texts and generated `speeds.csv` files. See `tests/one_voice` for an example structure.

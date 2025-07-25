@@ -6,6 +6,8 @@ from sync_utils import time_to_seconds
 import librosa
 import demucs.separate
 import shutil
+import librosa
+
 
 def extract_acomponiment_or_vocals(directory, subtitle_name, out_ukr_wav,
         pipeline_suffix="_extracted.wav",
@@ -126,3 +128,39 @@ def normalize_stereo_audio(input_path: str, output_path: str, target_db: float =
     sf.write(output_path, normalized_audio.T, sr)
 
     print(f"Normalized {input_path} to {target_db} dB per channel and saved as {output_path}")
+
+def adjust_stereo_volume_with_librosa(
+        input_audio,
+        output_audio,
+        volume_intervals,
+        acomponiment,
+        acomponiment_coef,
+        voice_coef,
+    ):
+    """
+    Adjusts the volume of a stereo audio file using librosa.
+
+    :param input_audio: Path to input WAV file
+    :param output_audio: Path to output WAV file
+    :param volume_intervals: List of tuples (start_time, end_time) where volume needs adjustment
+    :param acomponiment: Path to extracted accompaniment audio
+    :param acomponiment_coef: Volume coefficient for the accompaniment track
+    :param voice_coef: Volume coefficient for the original voice
+    """
+    # Load audio file with stereo channels
+    y, sr = librosa.load(input_audio, sr=None, mono=False)
+    a, sr = librosa.load(acomponiment, sr=None, mono=False)
+
+    # Convert time to sample index
+    for start_time, end_time in volume_intervals:
+        start_time, end_time = time_to_seconds(start_time), time_to_seconds(end_time)
+        start_sample = int(librosa.time_to_samples(float(start_time), sr=sr))
+        end_sample = int(librosa.time_to_samples(float(end_time), sr=sr))
+
+        # Apply volume adjustment in the given range for both channels
+        y[:, start_sample:end_sample] =  y[:, start_sample:end_sample] * voice_coef + a[:, start_sample:end_sample]*(1-voice_coef)*acomponiment_coef
+
+    # Save the modified audio
+    sf.write(output_audio, y.T, sr)  # Transpose y to match the expected shape for stereo
+
+    print(f"Stereo volume adjusted and saved to {output_audio}")
