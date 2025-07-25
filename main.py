@@ -148,7 +148,7 @@ def main():
     parser = argparse.ArgumentParser(description="Script that processes a subtitle file")
 
     # Add a folder argument
-    parser.add_argument('--subtitle', type=str, help="Path to the subtitle folder to be processed",
+    parser.add_argument('--subtitle', type=str, help="Path to the subtitle folder/file to be processed",
                         default=r"records")
     # Add default tts speeds file
     parser.add_argument('--speeds', type=str, help="Path to the speeds of tts",
@@ -204,7 +204,8 @@ def main():
 
     sbt_files = fast_rglob(subtitle, srtext, exclude_ext="_0_mod.srt")
     # we need exclude srt modified files that we used for right pronunciation
-
+    if subtitle.is_file():
+        sbt_files = [subtitle]
     for subtitle in sbt_files:
         subtitle = Path(subtitle)
         video_path = subtitle.with_suffix(videoext)

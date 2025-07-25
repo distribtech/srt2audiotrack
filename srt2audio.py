@@ -11,8 +11,6 @@ from omegaconf import OmegaConf
 from importlib.resources import files
 from hydra.utils import get_class
 import librosa
-# from transformers.utils.dummy_pt_objects import Wav2Vec2BertModel
-# from transformers import Wav2Vec2BertModel
 from wav2txt import wav2txt
 import re
 import srt2csv
