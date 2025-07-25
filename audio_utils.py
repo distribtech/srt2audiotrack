@@ -2,7 +2,7 @@ import csv
 import os
 import soundfile as sf
 import numpy as np
-from correct_times import time_to_seconds   
+from sync_utils import time_to_seconds
 import librosa
 import demucs.separate
 import shutil

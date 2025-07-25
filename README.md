@@ -1,31 +1,43 @@
 # srt2audiotrack
 
-Make from directory with videos and srt files videos with english audiotrack.
+`srt2audiotrack` converts videos with subtitle files into new videos with an automatically generated English audio track. The pipeline uses **F5‑TTS** for text‑to‑speech generation and FFmpeg for audio mixing.
 
-For installation:
+## Installation
 
-In Windows:
-
-1. Create conda environment:
+### 1. Create an environment (Windows example)
+```bash
 conda create -n f5-tts-demucs python=3.10
 conda activate f5-tts-demucs
+```
 
-2. Install f5-tts (https://github.com/SWivid/F5-TTS/tree/main)
-pip install f5-tts
+### 2. Install dependencies
+- Install [F5‑TTS](https://github.com/SWivid/F5-TTS):
+  ```bash
+  pip install f5-tts
+  ```
+- Install [Demucs](https://github.com/adefossez/demucs) for accompaniment extraction:
+  ```bash
+  python -m pip install -U demucs
+  ```
+- Install other Python requirements:
+  ```bash
+  pip install -r requirements.txt
+  ```
 
-then install demucs (https://github.com/adefossez/demucs)
-python -m pip install -U demucs
-
-3. Run:
+## Usage
+Run the main script by providing a folder that contains videos and matching `.srt` subtitle files:
+```bash
 python main.py --subtitle records\one_voice
+```
+The processed videos will be saved in the same folder with the suffix `_out_mix.mp4`.
 
-In records\one_voice directory will be created videos with suffix "_mix_out.mp4"
+### Command line options
+- `--subtitle` – path to a folder or a single subtitle file.
+- `--videoext` – extension of the video files (default: `.mp4`).
+- `--srtext` – extension of subtitle files (default: `.srt`).
+- `--coef` – volume mix coefficient for the original audio (default: `0.2`).
 
-Result must be:
-https://fex.net/ru/s/fctovr0
+Run `python main.py -h` to see all available options.
 
-ToDo:
-
-1. Make something with short not-generated segments.
-2. Test work with single file.
-3. Refactor everything.
+## Notes
+The `VOICE` subfolder should contain reference speaker audio files together with their texts and generated `speeds.csv` files. See `records/one_voice` for an example structure.
