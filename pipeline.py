@@ -46,32 +46,34 @@ class SubtitlePipeline:
         self.srt_csv_file: Path | None = None
         self.stereo_eng_file: Path | None = None
 
-    @staticmethod
-    def prepare_subtitles(
-        subtitle: Path, vocabular_pth: Path, output_folder: Path
-    ) -> tuple[Path, str, Path]:
+    def prepare_subtitles(self) -> tuple[Path, str, Path]:
         """Apply vocabulary corrections and return helper paths."""
-        directory = Path(output_folder) / subtitle.stem
+        directory = self.output_folder / self.subtitle.stem
         directory.mkdir(parents=True, exist_ok=True)
-        subtitle_name = subtitle.stem
+        subtitle_name = self.subtitle.stem
         out_path = directory / f"{subtitle_name}_0_mod.srt"
 
         if not out_path.exists():
             vocabulary.modify_subtitles_with_vocabular_text_only(
-                subtitle, vocabular_pth, out_path
+                self.subtitle, self.vocabular, out_path
             )
+
+        self.directory = directory
+        self.subtitle_name = subtitle_name
+        self.out_path = out_path
 
         return directory, subtitle_name, out_path
 
-    @staticmethod
-    def subtitles_to_audio(
-        directory: Path,
-        subtitle_name: str,
-        out_path: Path,
-        speakers: dict,
-        default_speaker: dict,
-    ) -> tuple[Path, Path]:
+    def subtitles_to_audio(self) -> tuple[Path, Path]:
         """Convert subtitles to CSV and generate English audio."""
+        assert self.directory is not None
+        assert self.subtitle_name is not None
+        assert self.out_path is not None
+
+        directory = self.directory
+        subtitle_name = self.subtitle_name
+        out_path = self.out_path
+
         srt_csv_file = directory / f"{subtitle_name}_1.0_srt.csv"
         if not srt_csv_file.exists():
             subtitle_csv.srt_to_csv(out_path, srt_csv_file)
@@ -83,7 +85,7 @@ class SubtitlePipeline:
         output_with_preview_speeds_csv = directory / f"{subtitle_name}_3.0_output_speed.csv"
         if not output_with_preview_speeds_csv.exists():
             subtitle_csv.add_speed_columns_with_speakers(
-                output_csv_with_speakers, speakers, output_with_preview_speeds_csv
+                output_csv_with_speakers, self.speakers, output_with_preview_speeds_csv
             )
 
         if not tts_audio.F5TTS.all_segments_in_folder_check(
@@ -93,8 +95,8 @@ class SubtitlePipeline:
             f5tts.generate_from_csv_with_speakers(
                 output_with_preview_speeds_csv,
                 directory,
-                speakers,
-                default_speaker,
+                self.speakers,
+                self.default_speaker,
                 rewrite=False,
             )
 
@@ -114,19 +116,23 @@ class SubtitlePipeline:
         if not stereo_eng_file.exists():
             convert_mono_to_stereo(output_audio_file, stereo_eng_file)
 
+        self.srt_csv_file = srt_csv_file
+        self.stereo_eng_file = stereo_eng_file
+
         return srt_csv_file, stereo_eng_file
 
-    @staticmethod
-    def process_video_file(
-        video_path: str,
-        directory: Path,
-        subtitle_name: str,
-        srt_csv_file: Path,
-        stereo_eng_file: Path,
-        acomponiment_coef: float,
-        voice_coef: float,
-    ) -> None:
+    def process_video_file(self, video_path: str) -> None:
         """Process the input video and mix with generated audio."""
+        assert self.directory is not None
+        assert self.subtitle_name is not None
+        assert self.srt_csv_file is not None
+        assert self.stereo_eng_file is not None
+
+        directory = self.directory
+        subtitle_name = self.subtitle_name
+        srt_csv_file = self.srt_csv_file
+        stereo_eng_file = self.stereo_eng_file
+
         if not os.path.exists(video_path):
             return
 
@@ -152,8 +158,8 @@ class SubtitlePipeline:
                 output_audio,
                 volume_intervals,
                 acomponiment,
-                acomponiment_coef,
-                voice_coef,
+                self.acomponiment_coef,
+                self.voice_coef,
             )
 
         ext = Path(video_path).suffix.lower()
@@ -183,21 +189,16 @@ class SubtitlePipeline:
         output_folder: Path,
     ) -> None:
         """High level helper that runs the full pipeline."""
-        directory, subtitle_name, out_path = cls.prepare_subtitles(
-            subtitle, vocabular_pth, output_folder
-        )
-        srt_csv_file, stereo_eng_file = cls.subtitles_to_audio(
-            directory, subtitle_name, out_path, speakers, default_speaker
-        )
-        cls.process_video_file(
-            video_path,
-            directory,
-            subtitle_name,
-            srt_csv_file,
-            stereo_eng_file,
+        pipeline = cls(
+            subtitle,
+            vocabular_pth,
+            speakers,
+            default_speaker,
             acomponiment_coef,
             voice_coef,
+            output_folder,
         )
+        pipeline.run(video_path)
 
     @staticmethod
     def list_subtitle_files(root_dir: str | Path, extension: str, exclude_ext: str) -> list[str]:
@@ -211,35 +212,17 @@ class SubtitlePipeline:
         return sbt_files
 
     def prepare(self) -> None:
-        self.directory, self.subtitle_name, self.out_path = self.prepare_subtitles(
-            self.subtitle,
-            self.vocabular,
-            self.output_folder,
-        )
+        self.directory, self.subtitle_name, self.out_path = self.prepare_subtitles()
 
     def generate_audio(self) -> None:
         assert self.directory is not None and self.subtitle_name is not None and self.out_path is not None
-        self.srt_csv_file, self.stereo_eng_file = self.subtitles_to_audio(
-            self.directory,
-            self.subtitle_name,
-            self.out_path,
-            self.speakers,
-            self.default_speaker,
-        )
+        self.srt_csv_file, self.stereo_eng_file = self.subtitles_to_audio()
 
     def process_video(self, video_path: str) -> None:
         assert self.directory is not None
         assert self.subtitle_name is not None
         assert self.srt_csv_file is not None and self.stereo_eng_file is not None
-        self.process_video_file(
-            video_path,
-            self.directory,
-            self.subtitle_name,
-            self.srt_csv_file,
-            self.stereo_eng_file,
-            self.acomponiment_coef,
-            self.voice_coef,
-        )
+        self.process_video_file(video_path)
 
     def run(self, video_path: str) -> None:
         self.prepare()
