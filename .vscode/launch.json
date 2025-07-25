@@ -11,6 +11,8 @@
             "args": [
                 "--subtitle",
                 "tests/one_voice/input",
+                "--output_folder",
+                "tests/one_voice/output",
                 "-c",
                 "tests/one_voice.toml"    
             ],
