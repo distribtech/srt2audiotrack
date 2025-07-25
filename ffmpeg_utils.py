@@ -27,18 +27,27 @@ def extract_audio(input_video, output_audio):  #, volume_intervals, k_volume):
 
 
 
-def adjust_stereo_volume_with_librosa(input_audio, output_audio, volume_intervals, acomponimemt, acomponiment_coef, voice_coef=0.2):
+def adjust_stereo_volume_with_librosa(
+    input_audio,
+    output_audio,
+    volume_intervals,
+    acomponiment,
+    acomponiment_coef,
+    voice_coef=0.2,
+):
     """
     Adjusts the volume of a stereo audio file using librosa.
 
     :param input_audio: Path to input WAV file
     :param output_audio: Path to output WAV file
     :param volume_intervals: List of tuples (start_time, end_time) where volume needs adjustment
-    :param k_volume: Volume adjustment factor (e.g., 0.5 for 50% reduction, 1.5 for increase)
+    :param acomponiment: Path to extracted accompaniment audio
+    :param acomponiment_coef: Volume coefficient for the accompaniment track
+    :param voice_coef: Volume coefficient for the original voice
     """
     # Load audio file with stereo channels
     y, sr = librosa.load(input_audio, sr=None, mono=False)
-    a, sr = librosa.load(acomponimemt, sr=None, mono=False)
+    a, sr = librosa.load(acomponiment, sr=None, mono=False)
 
     # Convert time to sample index
     for start_time, end_time in volume_intervals:

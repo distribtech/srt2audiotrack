@@ -80,11 +80,12 @@ def main():
         ready_video_file_name = subtitle.stem + "_out_mix.mp4"
         ready_video_path = video_path.parent / ready_video_file_name
         if video_path.is_file() and not ready_video_path.is_file():
-            create_video_with_english_audio(video_path, 
-                                            subtitle, 
-                                            speakers, default_speaker, 
-                                            vocabular_pth, 
-                                            acomponiment_coef, 
+            create_video_with_english_audio(video_path,
+                                            subtitle,
+                                            speakers, default_speaker,
+                                            vocabular_pth,
+                                            acomponiment_coef,
+                                            voice_coef,
                                             output_folder)
 
 

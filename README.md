@@ -36,9 +36,9 @@ The processed videos will be saved in the folder specified by `--output_folder`
 - `--subtitle` – path to a folder or a single subtitle file.
 - `--videoext` – extension of the video files (default: `.mp4`).
 - `--srtext` – extension of subtitle files (default: `.srt`).
-- `--coef` – volume mix coefficient for the original audio (default: `0.2`).
-- `--output_folder` – directory where all intermediate and result files will be
-  stored.
+- `--acomponiment_coef` – mix coefficient for the original audio (default: `0.3`).
+- `--voice_coef` – proportion of generated voice in the final mix (default: `0.2`).
+- `--output_folder` – directory where all intermediate and result files will be stored.
 
 Run `python main.py -h` to see all available options.
 
