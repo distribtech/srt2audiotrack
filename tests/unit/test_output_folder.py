@@ -49,14 +49,21 @@ def test_create_video_with_english_audio_passes_output_folder(tmp_path, monkeypa
     def fake_subtitles_to_audio(directory, subtitle_name, out_path, speakers, default_speaker):
         calls["subdir"] = directory
         return Path("dummy.csv"), Path("dummy.wav")
-    def fake_process_video_file(video_path_arg, directory, subtitle_name, srt_csv_file, stereo_eng_file, coef):
+    def fake_process_video_file(video_path_arg, directory, subtitle_name, srt_csv_file, stereo_eng_file, acomponiment_coef, voice_coef):
         calls["procdir"] = directory
 
     monkeypatch.setattr(pipeline, "subtitles_to_audio", fake_subtitles_to_audio)
     monkeypatch.setattr(pipeline, "process_video_file", fake_process_video_file)
 
     pipeline.create_video_with_english_audio(
-        str(video), subtitle, speakers, default_speaker, vocab, 0.1, out_dir
+        str(video),
+        subtitle,
+        speakers,
+        default_speaker,
+        vocab,
+        0.1,
+        0.2,
+        out_dir,
     )
 
     expected = out_dir / subtitle.stem
