@@ -147,30 +147,20 @@ def create_video_with_english_audio(
     voice_coef: float,
     output_folder: Path,
 ):
-    directory, subtitle_name, out_path = prepare_subtitles(subtitle, vocabular_pth, output_folder)
-    srt_csv_file, stereo_eng_file = subtitles_to_audio(
-        directory, subtitle_name, out_path, speakers, default_speaker
-    )
-    process_video_file(
-        video_path,
-        directory,
-        subtitle_name,
-        srt_csv_file,
-        stereo_eng_file,
+    pipeline = SubtitlePipeline(
+        subtitle,
+        vocabular_pth,
+        speakers,
+        default_speaker,
         acomponiment_coef,
         voice_coef,
+        output_folder,
     )
+    pipeline.run(video_path)
 
 
 def list_subtitle_files(root_dir: str | Path, extension: str, exclude_ext: str):
-    """Recursively search for files with the given extension, excluding modified files."""
-    ext = extension.lstrip('.')
-    sbt_files = []
-    for dirpath, _, filenames in os.walk(root_dir):
-        for file in filenames:
-            if file.endswith(f".{ext}") and not file.endswith(exclude_ext):
-                sbt_files.append(os.path.join(dirpath, file))
-    return sbt_files
+    return SubtitlePipeline.list_subtitle_files(root_dir, extension, exclude_ext)
 
 
 class SubtitlePipeline:
@@ -235,5 +225,26 @@ class SubtitlePipeline:
         self.prepare()
         self.generate_audio()
         self.process_video(video_path)
+
+    # ------------------------------------------------------------------
+    # Additional convenience methods
+    # ------------------------------------------------------------------
+
+    def create_video_with_english_audio(self, video_path: str) -> None:
+        """Alias for :py:meth:`run`."""
+        self.run(video_path)
+
+    @staticmethod
+    def list_subtitle_files(
+        root_dir: str | Path, extension: str, exclude_ext: str
+    ) -> list[str]:
+        """Recursively search for subtitle files excluding processed ones."""
+        ext = extension.lstrip(".")
+        sbt_files: list[str] = []
+        for dirpath, _, filenames in os.walk(root_dir):
+            for file in filenames:
+                if file.endswith(f".{ext}") and not file.endswith(exclude_ext):
+                    sbt_files.append(os.path.join(dirpath, file))
+        return sbt_files
 
 

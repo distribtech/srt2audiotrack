@@ -116,3 +116,46 @@ def test_subtitle_pipeline_run_uses_output_folder(tmp_path, monkeypatch):
     assert calls["prep"] == expected
     assert calls["audio"] == expected
     assert calls["video"] == expected
+
+
+def test_subtitle_pipeline_create_video_with_english_audio_calls_run(tmp_path, monkeypatch):
+    subtitle = tmp_path / "sample.srt"
+    subtitle.write_text("1\n00:00:00,000 --> 00:00:01,000\nhello\n")
+    vocab = tmp_path / "vocab.txt"
+    vocab.write_text("")
+    speakers = {"default_speaker_name": "spk", "spk": {"ref_text": "", "ref_file": ""}}
+    default_speaker = speakers["spk"]
+    sp = pipeline.SubtitlePipeline(
+        subtitle,
+        vocab,
+        speakers,
+        default_speaker,
+        0.1,
+        0.2,
+        tmp_path / "out",
+    )
+
+    called = {}
+
+    def fake_run(self, video):
+        called["video"] = video
+
+    monkeypatch.setattr(pipeline.SubtitlePipeline, "run", fake_run)
+
+    sp.create_video_with_english_audio("video.mp4")
+
+    assert called["video"] == "video.mp4"
+
+
+def test_subtitle_pipeline_list_subtitle_files(tmp_path):
+    (tmp_path / "a.srt").write_text("")
+    (tmp_path / "b_0_mod.srt").write_text("")
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    (sub / "c.srt").write_text("")
+
+    result = set(
+        pipeline.SubtitlePipeline.list_subtitle_files(tmp_path, ".srt", "_0_mod.srt")
+    )
+    expected = {str(tmp_path / "a.srt"), str(sub / "c.srt")}
+    assert result == expected
