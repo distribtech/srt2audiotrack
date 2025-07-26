@@ -61,32 +61,11 @@ class SubtitlePipeline:
         self.mix_video = self.output_folder / f"{self.subtitle_name}_out_mix.mp4"
 
     def run(self, video_path: str) -> None:
-        """Run the full processing pipeline for ``video_path``."""
-        # The public ``run`` method orchestrates the high level steps using
-        # the public helper methods so that tests can monkeypatch them.
-        self.prepare_subtitles()
-        self.subtitles_to_audio()
-        self.process_video_file(video_path)
-
-    # ------------------------------------------------------------------
-    # Public helper methods expected by the tests.  These methods simply
-    # wrap the private implementation details so that unit tests can
-    # monkeypatch them without relying on the internal method names.
-    # ------------------------------------------------------------------
-
-    def prepare_subtitles(self) -> tuple[Path, str, Path]:
-        """Prepare subtitle files and return output locations."""
         self.directory.mkdir(parents=True, exist_ok=True)
-        self._prepare_subtitles()
-        return self.directory, self.subtitle_name, self.out_path
+        self._prepare_subtitles() # make subtitle file with vocabular
 
-    def subtitles_to_audio(self) -> tuple[Path, Path]:
-        """Convert subtitles to the English audio track."""
         self._convert_subs_to_audio()
-        return self.srt_csv_file, self.stereo_eng_file
-
-    def process_video_file(self, video_path: str) -> None:
-        """Process ``video_path`` by mixing generated audio with the video."""
+        
         self._extract_ukrainian_audio(video_path)
         self._separate_accompaniment()
         self._adjust_volume()
