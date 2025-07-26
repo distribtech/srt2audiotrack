@@ -21,24 +21,31 @@ class SubtitlePipeline:
 
     def __init__(
         self,
-        subtitle: Path,
-        vocabular: Path,
+        subtitle: Path | str,
+        vocabular: Path | str,
         speakers: dict,
         default_speaker: dict,
         acomponiment_coef: float,
         voice_coef: float,
-        output_folder: Path,
+        output_folder: str | Path = "",
     ) -> None:
-        self.subtitle = subtitle
-        self.vocabular = vocabular
+        # Convert string paths to Path objects if needed
+        self.subtitle = Path(subtitle) if isinstance(subtitle, str) else subtitle
+        self.vocabular = Path(vocabular) if isinstance(vocabular, str) else vocabular
+        
+        # If output_folder is empty or not provided, use the subtitle's parent directory
+        if not output_folder:
+            self.output_folder = self.subtitle.parent
+        else:
+            self.output_folder = Path(output_folder) if isinstance(output_folder, str) else output_folder
+            
         self.speakers = speakers
         self.default_speaker = default_speaker
         self.acomponiment_coef = acomponiment_coef
         self.voice_coef = voice_coef
-        self.output_folder = output_folder
+        self.subtitle_name: str = self.subtitle.stem
 
         self.directory: Path = self.output_folder / self.subtitle.stem
-        self.subtitle_name: str = self.subtitle.stem
 
         # Output artifacts
         self.out_path = self.directory / f"{self.subtitle_name}_0_mod.srt"
