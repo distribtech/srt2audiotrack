@@ -66,13 +66,19 @@ function SubtitleRow({
   onSetStart,
   onSetEnd,
   onMerge,
-  isActive
+  isActive,
+  onRowClick,
+  rowRef
 }) {
   const update = (field, value) => {
     onChange(index, { ...sub, [field]: value });
   };
   return (
-    <tr className={`hover:bg-gray-50 ${isActive ? 'bg-yellow-100' : ''}`}>
+    <tr
+      ref={rowRef}
+      onClick={onRowClick}
+      className={`subtitle-row hover:bg-gray-50 ${isActive ? 'active' : ''}`}
+    >
       <td className="p-1 text-center">{index + 1}</td>
       <td className="p-1"><input className="border p-1 w-full" value={sub.start} onChange={e => update('start', e.target.value)} /></td>
       <td className="p-1"><input className="border p-1 w-full" value={sub.end} onChange={e => update('end', e.target.value)} /></td>
@@ -97,6 +103,8 @@ function App() {
   const waveformRef = useRef(null);
   const wavesurferRef = useRef(null);
   const regionsRef = useRef(null);
+  const regionMapRef = useRef({});
+  const rowRefs = useRef([]);
   const subsRef = useRef(subs);
   const [zoom, setZoom] = useState(50);
   const [activeIndex, setActiveIndex] = useState(null);
@@ -158,7 +166,8 @@ function App() {
   const loadRegions = () => {
     if (!regionsRef.current) return;
     regionsRef.current.clearRegions();
-    subsRef.current.forEach(sub => {
+    regionMapRef.current = {};
+    subsRef.current.forEach((sub, idx) => {
       const r = regionsRef.current.addRegion({
         start: timeToSeconds(sub.start),
         end: timeToSeconds(sub.end),
@@ -167,7 +176,14 @@ function App() {
         drag: true,
         resize: true
       });
+      regionMapRef.current[r.id] = r;
       sub.regionId = r.id;
+      r.element.addEventListener('click', () => {
+        const clickIdx = subsRef.current.findIndex(s => s.regionId === r.id);
+        if (clickIdx !== -1) {
+          setActiveIndex(clickIdx);
+        }
+      });
     });
   };
 
@@ -267,6 +283,18 @@ function App() {
     setActiveIndex(idx);
   };
 
+  const highlightRegion = idx => {
+    if (!regionsRef.current) return;
+    Object.values(regionMapRef.current).forEach(r => {
+      r.element.style.backgroundColor = 'rgba(76, 175, 80, 0.2)';
+    });
+    const regionId = subsRef.current[idx]?.regionId;
+    if (regionId && regionMapRef.current[regionId]) {
+      regionMapRef.current[regionId].element.style.backgroundColor =
+        'rgba(255, 165, 0, 0.4)';
+    }
+  };
+
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid) return;
@@ -275,6 +303,16 @@ function App() {
       vid.removeEventListener('timeupdate', highlightCurrentSubtitle);
     };
   }, [subs]);
+
+  useEffect(() => {
+    if (activeIndex !== null) {
+      highlightRegion(activeIndex);
+      const row = rowRefs.current[activeIndex];
+      if (row) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [activeIndex]);
 
   const addLine = () => {
     setSubs([...subs, { start: '00:00:00,000', end: '00:00:00,000', text: '' }]);
@@ -357,6 +395,8 @@ function App() {
                   onSetEnd={() => setEnd(i)}
                   onMerge={() => mergeWithNext(i)}
                   isActive={activeIndex === i}
+                  onRowClick={() => setActiveIndex(i)}
+                  rowRef={el => (rowRefs.current[i] = el)}
                 />
               ))}
             </tbody>
