@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import './App.css';
 
 function parseSRT(text) {
@@ -65,13 +65,14 @@ function SubtitleRow({
   onSplit,
   onSetStart,
   onSetEnd,
-  onMerge
+  onMerge,
+  isActive
 }) {
   const update = (field, value) => {
     onChange(index, { ...sub, [field]: value });
   };
   return (
-    <tr className="hover:bg-gray-50">
+    <tr className={`hover:bg-gray-50 ${isActive ? 'bg-yellow-100' : ''}`}>
       <td className="p-1 text-center">{index + 1}</td>
       <td className="p-1"><input className="border p-1 w-full" value={sub.start} onChange={e => update('start', e.target.value)} /></td>
       <td className="p-1"><input className="border p-1 w-full" value={sub.end} onChange={e => update('end', e.target.value)} /></td>
@@ -93,6 +94,16 @@ function App() {
   const [subs, setSubs] = useState([]);
   const [videoSrc, setVideoSrc] = useState(null);
   const videoRef = useRef(null);
+  const waveformRef = useRef(null);
+  const wavesurferRef = useRef(null);
+  const regionsRef = useRef(null);
+  const subsRef = useRef(subs);
+  const [zoom, setZoom] = useState(50);
+  const [activeIndex, setActiveIndex] = useState(null);
+
+  useEffect(() => {
+    subsRef.current = subs;
+  }, [subs]);
 
   const handleSrtUpload = e => {
     const file = e.target.files[0];
@@ -106,6 +117,60 @@ function App() {
     setVideoSrc(URL.createObjectURL(file));
   };
 
+  const initWaveform = () => {
+    if (!waveformRef.current || !videoRef.current) return;
+    if (wavesurferRef.current) {
+      wavesurferRef.current.destroy();
+    }
+    const ws = window.WaveSurfer.create({
+      container: waveformRef.current,
+      waveColor: 'rgb(200, 200, 200)',
+      progressColor: 'rgb(100, 100, 100)',
+      media: videoRef.current,
+      height: 128,
+      barWidth: 2,
+      barGap: 1,
+      barRadius: 2
+    });
+    const plugin = ws.registerPlugin(window.WaveSurfer.Regions.create());
+    wavesurferRef.current = ws;
+    regionsRef.current = plugin;
+
+    ws.on('ready', () => {
+      ws.zoom(zoom);
+      loadRegions();
+    });
+
+    plugin.on('region-updated', region => {
+      const idx = subsRef.current.findIndex(s => s.regionId === region.id);
+      if (idx !== -1) {
+        const next = subsRef.current.slice();
+        next[idx] = {
+          ...next[idx],
+          start: secondsToTime(region.start),
+          end: secondsToTime(region.end)
+        };
+        setSubs(next);
+      }
+    });
+  };
+
+  const loadRegions = () => {
+    if (!regionsRef.current) return;
+    regionsRef.current.clearRegions();
+    subsRef.current.forEach(sub => {
+      const r = regionsRef.current.addRegion({
+        start: timeToSeconds(sub.start),
+        end: timeToSeconds(sub.end),
+        content: sub.text.split('\n')[0],
+        color: 'rgba(76, 175, 80, 0.2)',
+        drag: true,
+        resize: true
+      });
+      sub.regionId = r.id;
+    });
+  };
+
   const updateSub = (idx, newSub) => {
     const next = subs.slice();
     next[idx] = newSub;
@@ -115,6 +180,12 @@ function App() {
   const deleteSub = idx => {
     setSubs(subs.filter((_, i) => i !== idx));
   };
+
+  useEffect(() => {
+    if (videoSrc) {
+      initWaveform();
+    }
+  }, [videoSrc]);
 
   const setStart = idx => {
     if (!videoRef.current) return;
@@ -183,8 +254,37 @@ function App() {
     setSubs(nextSubs);
   };
 
+  useEffect(() => {
+    loadRegions();
+  }, [subs]);
+
+  const highlightCurrentSubtitle = () => {
+    if (!videoRef.current) return;
+    const current = videoRef.current.currentTime;
+    const idx = subs.findIndex(
+      s => current >= timeToSeconds(s.start) && current < timeToSeconds(s.end)
+    );
+    setActiveIndex(idx);
+  };
+
+  useEffect(() => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    vid.addEventListener('timeupdate', highlightCurrentSubtitle);
+    return () => {
+      vid.removeEventListener('timeupdate', highlightCurrentSubtitle);
+    };
+  }, [subs]);
+
   const addLine = () => {
     setSubs([...subs, { start: '00:00:00,000', end: '00:00:00,000', text: '' }]);
+  };
+
+  const handleZoom = e => {
+    setZoom(e.target.value);
+    if (wavesurferRef.current) {
+      wavesurferRef.current.zoom(Number(e.target.value));
+    }
   };
 
   const saveSrt = () => {
@@ -211,7 +311,21 @@ function App() {
         </div>
       </div>
       {videoSrc && (
-        <video ref={videoRef} src={videoSrc} controls className="w-full mb-4" />
+        <>
+          <video ref={videoRef} src={videoSrc} controls className="w-full mb-4" />
+          <div ref={waveformRef} id="waveform" className="mb-4"></div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700">Waveform Zoom:</label>
+            <input
+              type="range"
+              min="10"
+              max="1000"
+              value={zoom}
+              onChange={handleZoom}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+            />
+          </div>
+        </>
       )}
       {subs.length > 0 && (
         <div className="table-wrapper">
@@ -242,6 +356,7 @@ function App() {
                   onSetStart={() => setStart(i)}
                   onSetEnd={() => setEnd(i)}
                   onMerge={() => mergeWithNext(i)}
+                  isActive={activeIndex === i}
                 />
               ))}
             </tbody>
