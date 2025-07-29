@@ -55,6 +55,53 @@ function secondsToTime(seconds) {
   return `${h}:${m}:${s},${ms}`;
 }
 
+// IndexedDB helpers for storing the uploaded video between reloads
+function openVideoDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('SubtitleEditor', 1);
+    request.onupgradeneeded = event => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains('video')) {
+        db.createObjectStore('video', { keyPath: 'id' });
+      }
+    };
+    request.onsuccess = event => resolve(event.target.result);
+    request.onerror = event => reject(event.target.error);
+  });
+}
+
+async function saveVideoToDB(file) {
+  const db = await openVideoDB();
+  const tx = db.transaction('video', 'readwrite');
+  tx.objectStore('video').put({ id: 'video', blob: file });
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = e => {
+      db.close();
+      reject(e.target.error);
+    };
+  });
+}
+
+async function loadVideoFromDB() {
+  const db = await openVideoDB();
+  return new Promise(resolve => {
+    const tx = db.transaction('video', 'readonly');
+    const request = tx.objectStore('video').get('video');
+    request.onsuccess = () => {
+      db.close();
+      resolve(request.result ? request.result.blob : null);
+    };
+    request.onerror = () => {
+      db.close();
+      resolve(null);
+    };
+  });
+}
+
 function SubtitleRow({
   sub,
   index,
@@ -99,6 +146,7 @@ function SubtitleRow({
 function App() {
   const [subs, setSubs] = useState([]);
   const [videoSrc, setVideoSrc] = useState(null);
+  const [subtitleName, setSubtitleName] = useState('');
   const videoRef = useRef(null);
   const waveformRef = useRef(null);
   const wavesurferRef = useRef(null);
@@ -113,16 +161,49 @@ function App() {
     subsRef.current = subs;
   }, [subs]);
 
+  // Load stored subtitles and video on initial mount
+  useEffect(() => {
+    const storedSubs = localStorage.getItem('subtitleText');
+    const storedName = localStorage.getItem('subtitleName');
+    if (storedSubs) {
+      setSubs(parseSRT(storedSubs));
+    }
+    if (storedName) {
+      setSubtitleName(storedName);
+    }
+    loadVideoFromDB().then(blob => {
+      if (blob) {
+        setVideoSrc(URL.createObjectURL(blob));
+      }
+    });
+  }, []);
+
+  // Persist subtitles whenever they change
+  useEffect(() => {
+    if (subs.length > 0) {
+      localStorage.setItem('subtitleText', toSRT(subs));
+      if (subtitleName) {
+        localStorage.setItem('subtitleName', subtitleName);
+      }
+    }
+  }, [subs, subtitleName]);
+
   const handleSrtUpload = e => {
     const file = e.target.files[0];
     if (!file) return;
-    file.text().then(txt => setSubs(parseSRT(txt)));
+    file.text().then(txt => {
+      setSubs(parseSRT(txt));
+      setSubtitleName(file.name);
+      localStorage.setItem('subtitleText', txt);
+      localStorage.setItem('subtitleName', file.name);
+    });
   };
 
   const handleVideoUpload = e => {
     const file = e.target.files[0];
     if (!file) return;
     setVideoSrc(URL.createObjectURL(file));
+    saveVideoToDB(file);
   };
 
   const initWaveform = () => {
@@ -342,10 +423,17 @@ function App() {
         <div>
           <label className="mr-2">Subtitle File:</label>
           <input type="file" accept=".srt" onChange={handleSrtUpload} />
+          {subtitleName && (
+            <span className="ml-2 text-sm italic">{subtitleName}</span>
+          )}
         </div>
         <div>
           <label className="mr-2">Media File:</label>
-          <input type="file" accept="video/*,audio/*" onChange={handleVideoUpload} />
+          <input
+            type="file"
+            accept="video/*,audio/*"
+            onChange={handleVideoUpload}
+          />
         </div>
       </div>
       {videoSrc && (
