@@ -206,7 +206,7 @@ function App() {
     saveVideoToDB(file);
   };
 
-  const initWaveform = () => {
+  const initWaveform = React.useCallback(() => {
     if (!waveformRef.current || !videoRef.current) return;
     if (wavesurferRef.current) {
       wavesurferRef.current.destroy();
@@ -242,9 +242,9 @@ function App() {
         setSubs(next);
       }
     });
-  };
+  }, [zoom, loadRegions]);
 
-  const loadRegions = () => {
+  const loadRegions = React.useCallback(() => {
     if (!regionsRef.current) return;
     regionsRef.current.clearRegions();
     regionMapRef.current = {};
@@ -266,7 +266,7 @@ function App() {
         }
       });
     });
-  };
+  }, []);
 
   const updateSub = (idx, newSub) => {
     const next = subs.slice();
@@ -282,7 +282,7 @@ function App() {
     if (videoSrc) {
       initWaveform();
     }
-  }, [videoSrc]);
+  }, [videoSrc, initWaveform]);
 
   const setStart = idx => {
     if (!videoRef.current) return;
@@ -355,14 +355,14 @@ function App() {
     loadRegions();
   }, [subs]);
 
-  const highlightCurrentSubtitle = () => {
+  const highlightCurrentSubtitle = React.useCallback(() => {
     if (!videoRef.current) return;
     const current = videoRef.current.currentTime;
     const idx = subs.findIndex(
       s => current >= timeToSeconds(s.start) && current < timeToSeconds(s.end)
     );
     setActiveIndex(idx);
-  };
+  }, [subs]);
 
   const highlightRegion = idx => {
     if (!regionsRef.current) return;
@@ -383,7 +383,7 @@ function App() {
     return () => {
       vid.removeEventListener('timeupdate', highlightCurrentSubtitle);
     };
-  }, [subs]);
+  }, [subs, highlightCurrentSubtitle]);
 
   useEffect(() => {
     if (activeIndex !== null) {
