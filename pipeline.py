@@ -65,10 +65,34 @@ class SubtitlePipeline:
 
     def run(self, video_path: str) -> None:
         self.directory.mkdir(parents=True, exist_ok=True)
-        self._prepare_subtitles() # make subtitle file with vocabular
+        # Use public wrappers so that behaviour can be monkeypatched in tests
+        self.prepare_subtitles()
+        self.subtitles_to_audio()
+        self.process_video_file(video_path)
 
+    # ------------------------------------------------------------------
+    # Public wrappers used by tests and external callers
+    # ------------------------------------------------------------------
+
+    def prepare_subtitles(self) -> tuple[Path, str, Path]:
+        """Prepare subtitle file and return paths.
+
+        Returns
+        -------
+        tuple[Path, str, Path]
+            The working directory, subtitle name and modified subtitle path.
+        """
+        self.directory.mkdir(parents=True, exist_ok=True)
+        self._prepare_subtitles()
+        return self.directory, self.subtitle_name, self.out_path
+
+    def subtitles_to_audio(self) -> tuple[Path, Path]:
+        """Convert prepared subtitles to audio files."""
         self._convert_subs_to_audio()
-        
+        return self.srt_csv_file, self.stereo_eng_file
+
+    def process_video_file(self, video_path: str) -> None:
+        """Process a video file using already generated audio tracks."""
         self._extract_ukrainian_audio(video_path)
         self._separate_accompaniment()
         self._adjust_volume()
