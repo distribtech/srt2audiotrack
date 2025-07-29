@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="appTitle">Subtitle Edit Online</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- WaveSurfer.js and Regions Plugin -->
+    <script src="https://unpkg.com/wavesurfer.js@7"></script>
+    <script src="https://unpkg.com/wavesurfer.js@7/dist/plugins/regions.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .table-header {
+            background-color: #f9fafb;
+            font-weight: 600;
+        }
+        .editable-cell {
+            cursor: text;
+        }
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            width: 90%;
+            max-width: 500px;
+        }
+        .subtitle-row.active {
+            background-color: #fefcbf; /* A light yellow */
+        }
+        #waveform {
+            height: 128px;
+            position: relative;
+        }
+        /* Styling for WaveSurfer regions */
+        .wavesurfer-region {
+            background-color: rgba(76, 175, 80, 0.2);
+            border-left: 2px solid rgba(76, 175, 80, 0.8);
+            border-right: 2px solid rgba(76, 175, 80, 0.8);
+            box-sizing: border-box;
+            z-index: 4 !important;
+        }
+        .wavesurfer-region-handle {
+            background-color: rgba(76, 175, 80, 1);
+            width: 4px !important;
+        }
+        .wavesurfer-region-label {
+            background-color: rgba(0,0,0,0.7);
+            color: white;
+            padding: 2px 4px;
+            font-size: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        /* New styles for scrollable table */
+        .table-wrapper { /* New wrapper for the table to handle scrolling */
+            max-height: 400px; /* Adjust as needed */
+            overflow-y: auto;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            background-color: white; /* Match the background of the table */
+        }
+        .subtitle-table { /* Apply fixed layout to the table itself */
+            width: 100%;
+            table-layout: fixed; /* Ensures columns have consistent width */
+            border-collapse: collapse; /* Remove space between cells */
+        }
+        .subtitle-table thead th {
+            position: sticky;
+            top: 0;
+            background-color: #f9fafb;
+            z-index: 10;
+            padding: 8px 12px; /* Consistent padding */
+            border-bottom: 1px solid #e5e7eb;
+            text-align: left;
+        }
+        .subtitle-table tbody td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        /* Define column widths for main subtitle rows */
+        .subtitle-table th:nth-child(1), .subtitle-table td:nth-child(1) { width: 4%; } /* # */
+        .subtitle-table th:nth-child(2), .subtitle-table td:nth-child(2) { width: 11%; } /* Start Time */
+        .subtitle-table th:nth-child(3), .subtitle-table td:nth-child(3) { width: 11%; } /* End Time */
+        .subtitle-table th:nth-child(4), .subtitle-table td:nth-child(4) { width: 35%; } /* Text */
+        .subtitle-table th:nth-child(5), .subtitle-table td:nth-child(5) { width: 9%; } /* Play/Stop */
+        .subtitle-table th:nth-child(6), .subtitle-table td:nth-child(6) { width: 9%; } /* Play from Start */
+        .subtitle-table th:nth-child(7), .subtitle-table td:nth-child(7) { width: 8%; } /* Split */
+        .subtitle-table th:nth-child(8), .subtitle-table td:nth-child(8) { width: 13%; } /* Actions (S, E, X) */
+
+
+        /* Styles for the new merge separator row */
+        .merge-separator-row td {
+            text-align: center;
+            padding: 0.5rem 0; /* Reduced padding */
+            background-color: #f0f0f0; /* Light grey background for separator */
+            border-bottom: 1px solid #e5e7eb; /* Keep the separator line */
+        }
+        .merge-separator-row .merge-btn {
+            margin: 0 auto; /* Center the button */
+            display: inline-block; /* Allow margin auto to work */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="mb-8 flex justify-between items-center">
+            <div>
+                <h1 class="text-4xl font-bold text-gray-900" data-i18n="mainTitle">Subtitle Edit Online</h1>
+                <p class="text-lg text-gray-600 mt-2" data-i18n="mainDescription">A powerful, browser-based tool to edit and sync your subtitle files.</p>
+            </div>
+            <div class="language-selector">
+                <label for="language-select" class="sr-only" data-i18n="languageLabel">Select Language</label>
+                <select id="language-select" class="p-2 rounded-md border border-gray-300 bg-white shadow-sm">
+                    <option value="en">English</option>
+                    <option value="uk">Українська</option>
+                </select>
+            </div>
+        </header>
+
+        <!-- Video and Waveform Section -->
+        <div id="media-player-section" class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4" data-i18n="mediaPlayerTitle">Media Player</h2>
+            <div class="mb-4">
+                <label for="video-upload" class="block text-sm font-medium text-gray-700 mb-2" data-i18n="loadMediaFileLabel">Load Video/Audio File:</label>
+                <input type="file" id="video-upload" accept="video/*, audio/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"/>
+            </div>
+            <video id="video-player" class="w-full rounded-lg bg-black" controls></video>
+            <div id="waveform" class="mt-4"></div>
+            <div id="waveform-loading" class="text-center p-4 hidden" data-i18n="loadingWaveform">Loading waveform...</div>
+            <div class="mt-4">
+                <label for="zoom-slider" class="block text-sm font-medium text-gray-700" data-i18n="waveformZoomLabel">Waveform Zoom:</label>
+                <input type="range" id="zoom-slider" min="10" max="1000" value="50" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+            </div>
+        </div>
+
+        <!-- Subtitle File Section -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-2xl font-semibold mb-4" data-i18n="loadSubtitleFileTitle">Load Subtitle File</h2>
+            <div class="flex flex-wrap gap-4">
+                <div class="flex-grow">
+                    <label for="file-upload" class="sr-only" data-i18n="chooseSubtitleFileLabel">Choose subtitle file</label>
+                    <input type="file" id="file-upload" accept=".srt" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                </div>
+                <button id="load-sample-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-full transition duration-300" data-i18n="loadSampleBtn">Load Sample</button>
+            </div>
+        </div>
+
+        <div id="editor-section" class="hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-semibold" data-i18n="editorTitle">Editor</h2>
+                <div>
+                    <button id="save-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full transition duration-300 mr-2" data-i18n="saveSrtBtn">Save .srt</button>
+                    <button id="add-line-btn" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-full transition duration-300" data-i18n="addLineBtn">Add Line</button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg table-wrapper">
+                <table class="subtitle-table text-left">
+                    <thead class="table-header">
+                        <tr>
+                            <th data-i18n="tableHeaderNum">#</th>
+                            <th data-i18n="tableHeaderStartTime">Start Time</th>
+                            <th data-i18n="tableHeaderEndTime">End Time</th>
+                            <th data-i18n="tableHeaderText">Text</th>
+                            <th data-i18n="tableHeaderPlayStop">Play/Stop</th>
+                            <th data-i18n="tableHeaderPlayFromStart">Play from Start</th>
+                            <th data-i18n="tableHeaderSplit">Split</th> <!-- New column header -->
+                            <th data-i18n="tableHeaderActions">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="subtitle-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="message-modal" class="modal-backdrop hidden">
+        <div class="modal-content">
+            <h3 id="modal-title" class="text-xl font-bold mb-4"></h3>
+            <p id="modal-message"></p>
+            <div class="text-right mt-6">
+                <button id="modal-close-btn" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-md" data-i18n="closeBtn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Wrap all code in DOMContentLoaded to ensure elements are loaded
+        document.addEventListener('DOMContentLoaded', async () => {
+            const fileUpload = document.getElementById('file-upload');
+            const videoUpload = document.getElementById('video-upload');
+            const videoPlayer = document.getElementById('video-player');
+            const waveformContainer = document.getElementById('waveform');
+            const waveformLoading = document.getElementById('waveform-loading');
+            const zoomSlider = document.getElementById('zoom-slider');
+            const loadSampleBtn = document.getElementById('load-sample-btn');
+            const editorSection = document.getElementById('editor-section');
+            const subtitleTableBody = document.getElementById('subtitle-table-body');
+            const saveBtn = document.getElementById('save-btn');
+            const addLineBtn = document.getElementById('add-line-btn');
+            const messageModal = document.getElementById('message-modal');
+            const modalTitle = document.getElementById('modal-title');
+            const modalMessage = document.getElementById('modal-message');
+            const modalCloseBtn = document.getElementById('modal-close-btn');
+            const languageSelect = document.getElementById('language-select');
+
+            let subtitles = [];
+            let wavesurfer = null;
+            let wsRegions = null;
+            let currentLanguage = localStorage.getItem('appLanguage') || 'en';
+            let currentSrtFileName = null; // Global variable to store the original SRT filename
+            let cachedVideoId = null; // New global variable to store the ID of the cached video
+
+            // IndexedDB Constants
+            const DB_NAME = 'SubtitleEditorDB';
+            const DB_VERSION = 1;
+            const VIDEO_STORE_NAME = 'videos';
+
+            let db; // To hold the IndexedDB database instance
+
+            // --- IndexedDB Functions (Moved to top within DOMContentLoaded) ---
+
+            /**
+             * Opens the IndexedDB database.
+             * @returns {Promise<IDBDatabase>} A promise that resolves with the database instance.
+             */
+            function openDatabase() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+                    request.onupgradeneeded = (event) => {
+                        db = event.target.result;
+                        if (!db.objectStoreNames.contains(VIDEO_STORE_NAME)) {
+                            db.createObjectStore(VIDEO_STORE_NAME);
+                        }
+                    };
+
+                    request.onsuccess = (event) => {
+                        db = event.target.result;
+                        resolve(db);
+                    };
+
+                    request.onerror = (event) => {
+                        console.error("IndexedDB error:", event.target.errorCode);
+                        showModal("errorTitle", "indexedDBError", event.target.errorCode);
+                        reject(event.target.errorCode);
+                    };
+                });
+            }
+
+            /**
+             * Saves a video Blob to IndexedDB.
+             * @param {string} id - The ID to store the video under.
+             * @param {Blob} videoBlob - The video Blob to save.
+             * @returns {Promise<void>} A promise that resolves when the video is saved.
+             */
+            function saveVideoToDb(id, videoBlob) {
+                return new Promise((resolve, reject) => {
+                    const transaction = db.transaction([VIDEO_STORE_NAME], 'readwrite');
+                    const store = transaction.objectStore(VIDEO_STORE_NAME);
+                    const request = store.put(videoBlob, id); // Store the Blob with the given ID
+
+                    request.onsuccess = () => {
+                        resolve();
+                    };
+
+                    request.onerror = (event) => {
+                        console.error("Error saving video to IndexedDB:", event.target.error);
+                        showModal("errorTitle", "saveVideoError", event.target.error.name);
+                        reject(event.target.error);
+                    };
+                });
+            }
+
+            /**
+             * Loads a video Blob from IndexedDB.
+             * @param {string} id - The ID of the video to load.
+             * @returns {Promise<Blob|null>} A promise that resolves with the video Blob or null if not found.
+             */
+            function loadVideoFromDb(id) {
+                return new Promise((resolve, reject) => {
+                    if (!db) {
+                        // This case should ideally not be hit if openDatabase is awaited first
+                        reject("IndexedDB not initialized.");
+                        return;
+                    }
+                    const transaction = db.transaction([VIDEO_STORE_NAME], 'readonly');
+                    const store = transaction.objectStore(VIDEO_STORE_NAME);
+                    const request = store.get(id);
+
+                    request.onsuccess = (event) => {
+                        resolve(event.target.result || null);
+                    };
+
+                    request.onerror = (event) => {
+                        console.error("Error loading video from IndexedDB:", event.target.error);
+                        showModal("errorTitle", "loadVideoError", event.target.error.name);
+                        reject(event.target.error);
+                    };
+                });
+            }
+
+            // --- Localization Data ---
+            const translations = {
+                en: {
+                    appTitle: 'Subtitle Edit Online',
+                    mainTitle: 'Subtitle Edit Online',
+                    mainDescription: 'A powerful, browser-based tool to edit and sync your subtitle files.',
+                    languageLabel: 'Select Language',
+                    mediaPlayerTitle: 'Media Player',
+                    loadMediaFileLabel: 'Load Video/Audio File:',
+                    loadingWaveform: 'Loading waveform...',
+                    waveformZoomLabel: 'Waveform Zoom:',
+                    loadSubtitleFileTitle: 'Load Subtitle File',
+                    chooseSubtitleFileLabel: 'Choose subtitle file',
+                    loadSampleBtn: 'Load Sample',
+                    editorTitle: 'Editor',
+                    saveSrtBtn: 'Save .srt',
+                    addLineBtn: 'Add Line',
+                    tableHeaderNum: '#',
+                    tableHeaderStartTime: 'Start Time',
+                    tableHeaderEndTime: 'End Time',
+                    tableHeaderText: 'Text',
+                    tableHeaderPlayStop: 'Play/Stop',
+                    tableHeaderPlayFromStart: 'Play from Start',
+                    tableHeaderSplit: 'Split', // New translation key
+                    tableHeaderMerge: 'Merge',
+                    tableHeaderActions: 'Actions',
+                    closeBtn: 'Close',
+                    parsingErrorTitle: 'Parsing Error',
+                    parsingErrorMessage: 'Failed to parse subtitle file. Error: ',
+                    successTitle: 'Success',
+                    subtitlesSavedMessage: 'Subtitles saved successfully!',
+                    subtitlesMergedMessage: 'Subtitles merged successfully!', // New translation key
+                    subtitlesSplitMessage: 'Subtitle split successfully!', // New translation key
+                    sessionRestoredTitle: 'Session Restored',
+                    sessionRestoredMessage: 'Your previous session has been restored. Note: Video/Audio files need to be re-uploaded.', // Updated message
+                    sessionRestoredVideoMessage: 'Your previous session has been restored. Cached video/audio file loaded.', // New message
+                    invalidTimeFormatTitle: 'Invalid Time Format',
+                    invalidTimeFormatMessage: 'Please enter time in HH:MM:SS,ms format (e.g., 00:00:01,234).',
+                    editPrompt: 'Edit ', // Will be followed by field name
+                    playStopSubtitleTitle: 'Play/Stop this subtitle',
+                    playFromStartSubtitleTitle: 'Play from start of this subtitle',
+                    splitSubtitleTitle: 'Split subtitle at current time', // New translation key
+                    mergeSubtitleTitle: 'Merge with next subtitle',
+                    setStartTitle: 'Set start to current time',
+                    setEndTitle: 'Set end to current time',
+                    deleteLineTitle: 'Delete line',
+                    newSubtitleText: 'New subtitle',
+                    mergeErrorTitle: 'Merge Error',
+                    mergeErrorMessage: 'Cannot merge: No next subtitle or already at the end.',
+                    splitErrorTitle: 'Split Error', // New translation key
+                    splitErrorMessage: 'Cannot split: Current time is outside this subtitle\'s range or too close to start/end.', // New translation key
+                    errorTitle: 'Error', // New title for error modals
+                    indexedDBError: 'IndexedDB error: ', // New message
+                    saveVideoError: 'Error saving video to cache: ', // New message
+                    loadVideoError: 'Error loading video from cache: ' // New message
+                },
+                uk: {
+                    appTitle: 'Онлайн редактор субтитрів',
+                    mainTitle: 'Онлайн редактор субтитрів',
+                    mainDescription: 'Потужний браузерний інструмент для редагування та синхронізації ваших файлів субтитрів.',
+                    languageLabel: 'Виберіть мову',
+                    mediaPlayerTitle: 'Медіаплеєр',
+                    loadMediaFileLabel: 'Завантажити відео/аудіо файл:',
+                    loadingWaveform: 'Завантаження вейв-форми...',
+                    waveformZoomLabel: 'Масштаб вейв-форми:',
+                    loadSubtitleFileTitle: 'Завантажити файл субтитрів',
+                    chooseSubtitleFileLabel: 'Виберіть файл субтитрів',
+                    loadSampleBtn: 'Завантажити приклад',
+                    editorTitle: 'Редактор',
+                    saveSrtBtn: 'Зберегти .srt',
+                    addLineBtn: 'Додати рядок',
+                    tableHeaderNum: '#',
+                    tableHeaderStartTime: 'Час початку',
+                    tableHeaderEndTime: 'Час закінчення',
+                    tableHeaderText: 'Текст',
+                    tableHeaderPlayStop: 'Відтворити/Пауза',
+                    tableHeaderPlayFromStart: 'Відтворити з початку',
+                    tableHeaderSplit: 'Розділити', // New translation key
+                    tableHeaderMerge: 'Злити',
+                    tableHeaderActions: 'Дії',
+                    closeBtn: 'Закрити',
+                    parsingErrorTitle: 'Помилка парсингу',
+                    parsingErrorMessage: 'Не вдалося розібрати файл субтитрів. Помилка: ',
+                    successTitle: 'Успішно',
+                    subtitlesSavedMessage: 'Субтитри успішно збережено!',
+                    subtitlesMergedMessage: 'Субтитри успішно злито!', // New translation key
+                    subtitlesSplitMessage: 'Субтитр успішно розділено!', // New translation key
+                    sessionRestoredTitle: 'Сесія відновлена',
+                    sessionRestoredMessage: 'Ваша попередня сесія була відновлена. Примітка: Відео/аудіо файли потрібно завантажити повторно.', // Updated message
+                    sessionRestoredVideoMessage: 'Ваша попередня сесія була відновлена. Завантажено кешований відео/аудіо файл.', // New message
+                    invalidTimeFormatTitle: 'Невірний формат часу',
+                    invalidTimeFormatMessage: 'Будь ласка, введіть час у форматі ГГ:ХХ:СС,мс (наприклад, 00:00:01,234).',
+                    editPrompt: 'Редагувати ',
+                    playStopSubtitleTitle: 'Відтворити/Пауза цей субтитр',
+                    playFromStartSubtitleTitle: 'Відтворити з початку цього субтитру',
+                    splitSubtitleTitle: 'Розділити субтитр на поточному часі', // New translation key
+                    mergeSubtitleTitle: 'Злити з наступним субтитром',
+                    setStartTitle: 'Встановити початок на поточний час',
+                    setEndTitle: 'Встановити кінець на поточний час',
+                    deleteLineTitle: 'Видалити рядок',
+                    newSubtitleText: 'Новий субтитр',
+                    mergeErrorTitle: 'Помилка злиття',
+                    mergeErrorMessage: 'Неможливо злити: Немає наступного субтитру або вже в кінці.',
+                    splitErrorTitle: 'Помилка розділення', // New translation key
+                    splitErrorMessage: 'Неможливо розділити: Поточний час знаходиться поза діапазоном цього субтитру або занадто близько до початку/кінця.', // New translation key
+                    errorTitle: 'Помилка', // New title for error modals
+                    indexedDBError: 'Помилка IndexedDB: ', // New message
+                    saveVideoError: 'Помилка збереження відео в кеші: ', // New message
+                    loadVideoError: 'Помилка завантаження відео з кешу: ' // New message
+                }
+            };
+
+            /**
+             * Sets the language of the application.
+             * @param {string} lang - The language code (e.g., 'en', 'uk').
+             */
+            function setLanguage(lang) {
+                currentLanguage = lang;
+                localStorage.setItem('appLanguage', lang); // Save selected language
+                const elements = document.querySelectorAll('[data-i18n]');
+                elements.forEach(element => {
+                    const key = element.getAttribute('data-i18n');
+                    if (translations[currentLanguage] && translations[currentLanguage][key]) {
+                        element.textContent = translations[currentLanguage][key];
+                    }
+                });
+
+                // Update specific elements that are not just textContent
+                document.querySelector('title').textContent = translations[currentLanguage].appTitle;
+
+                // Update button titles (tooltips) - these are handled dynamically in renderTable now
+                // But for existing elements outside the table, we still need to update them:
+                // Check if element exists before setting title
+                const loadSampleBtnElement = document.getElementById('load-sample-btn');
+                if (loadSampleBtnElement) loadSampleBtnElement.title = translations[currentLanguage].loadSampleBtn;
+                const saveBtnElement = document.getElementById('save-btn');
+                if (saveBtnElement) saveBtnElement.title = translations[currentLanguage].saveSrtBtn;
+                const addLineBtnElement = document.getElementById('add-line-btn');
+                if (addLineBtnElement) addLineBtnElement.title = translations[currentLanguage].addLineBtn;
+                const modalCloseBtnElement = document.getElementById('modal-close-btn');
+                if (modalCloseBtnElement) modalCloseBtnElement.title = translations[currentLanguage].closeBtn;
+
+
+                // Re-render table to update dynamically added content (like button titles)
+                renderTable();
+            }
+
+            // --- Utility Functions ---
+            
+            /**
+             * Converts an SRT time string (HH:MM:SS,ms) to total seconds.
+             * @param {string} timeStr - The time string.
+             * @returns {number} Total seconds.
+             */
+            function timeToSeconds(timeStr) {
+                if (!timeStr) return 0;
+                const parts = timeStr.split(/[:,]/);
+                if (parts.length !== 4) return 0;
+                return parseInt(parts[0], 10) * 3600 + parseInt(parts[1], 10) * 60 + parseInt(parts[2], 10) + parseInt(parts[3], 10) / 1000;
+            }
+            
+            /**
+             * Converts total seconds to an SRT time string (HH:MM:SS,ms).
+             * @param {number} seconds - Total seconds.
+             * @returns {string} SRT time string.
+             */
+            function secondsToTime(seconds) {
+                if (isNaN(seconds) || seconds < 0) return '00:00:00,000';
+                const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+                const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+                const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+                const ms = Math.round((seconds - Math.floor(seconds)) * 1000).toString().padStart(3, '0');
+                return `${h}:${m}:${s},${ms}`;
+            }
+
+            /**
+             * Displays a custom modal message.
+             * @param {string} titleKey - The key for the title in translations.
+             * @param {string} messageKey - The key for the message in translations.
+             * @param {string} [additionalMessage=''] - Optional additional message to append.
+             */
+            function showModal(titleKey, messageKey, additionalMessage = '') {
+                modalTitle.textContent = translations[currentLanguage][titleKey] || titleKey;
+                modalMessage.textContent = (translations[currentLanguage][messageKey] || messageKey) + additionalMessage;
+                messageModal.classList.remove('hidden');
+            }
+
+            // --- Core Functions ---
+
+            /**
+             * Parses an SRT content string into an array of subtitle objects.
+             * @param {string} text - The SRT file content.
+             * @returns {Array<Object>} An array of subtitle objects.
+             */
+            function parseSRT(text) {
+                const subs = [];
+                const lines = text.trim().replace(/\r/g, '').split(/\n/);
+                let i = 0;
+                while (i < lines.length) {
+                    // Skip empty lines or non-index lines
+                    if (!/^\d+$/.test(lines[i]?.trim())) { i++; continue; }
+                    const index = parseInt(lines[i].trim(), 10);
+                    i++;
+                    // Check for time string
+                    if (!lines[i]?.includes('-->')) { continue; }
+                    const [start, end] = lines[i].trim().split(' --> ').map(t => t.trim());
+                    i++;
+                    let textLines = [];
+                    // Collect subtitle text lines until an empty line or end of file
+                    while (i < lines.length && lines[i].trim() !== '') {
+                        textLines.push(lines[i].trim());
+                        i++;
+                    }
+                    subs.push({ index, start, end, text: textLines.join('\n') });
+                    // Skip any extra empty lines
+                    while (i < lines.length && lines[i].trim() === '') { i++; }
+                }
+                return subs;
+            }
+
+            /**
+             * Converts an array of subtitle objects back into an SRT formatted string.
+             * @param {Array<Object>} subs - An array of subtitle objects.
+             * @returns {string} The SRT formatted string.
+             */
+            function toSRT(subs) {
+                return subs.map((sub, index) => `${index + 1}\n${sub.start} --> ${sub.end}\n${sub.text}\n`).join('\n');
+            }
+
+            /**
+             * Renders the subtitle table based on the current 'subtitles' array.
+             * Updates local storage and waveform regions.
+             */
+            function renderTable() {
+                subtitleTableBody.innerHTML = '';
+                subtitles.forEach((sub, i) => {
+                    const row = document.createElement('tr');
+                    row.className = 'subtitle-row hover:bg-gray-50';
+                    row.dataset.index = i;
+                    row.dataset.startTime = timeToSeconds(sub.start);
+                    row.innerHTML = `
+                        <td>${i + 1}</td>
+                        <td class="editable-cell" data-field="start">${sub.start}</td>
+                        <td class="editable-cell" data-field="end">${sub.end}</td>
+                        <td class="editable-cell" data-field="text" style="white-space: pre-wrap;">${sub.text}</td>
+                        <td>
+                            <button class="play-stop-btn bg-blue-400 hover:bg-blue-500 text-white font-bold py-1 px-2 rounded-full text-xs" title="${translations[currentLanguage].playStopSubtitleTitle}">▶/❚❚</button>
+                        </td>
+                        <td>
+                            <button class="play-from-start-btn bg-purple-400 hover:bg-purple-500 text-white font-bold py-1 px-2 rounded-full text-xs" title="${translations[currentLanguage].playFromStartSubtitleTitle}">▶▶</button>
+                        </td>
+                        <td>
+                            <button class="split-btn bg-orange-400 hover:bg-orange-500 text-white font-bold py-1 px-2 rounded-full text-xs" title="${translations[currentLanguage].splitSubtitleTitle}">Split</button>
+                        </td>
+                        <td class="text-xs space-x-1">
+                            <button class="set-start-btn text-blue-500 hover:text-blue-700 font-semibold" title="${translations[currentLanguage].setStartTitle}">S</button>
+                            <button class="set-end-btn text-green-500 hover:text-green-700 font-semibold" title="${translations[currentLanguage].setEndTitle}">E</button>
+                            <button class="delete-btn text-red-500 hover:text-red-700 font-semibold" title="${translations[currentLanguage].deleteLineTitle}">X</button>
+                        </td>
+                    `;
+                    subtitleTableBody.appendChild(row);
+
+                    // Add merge button row after each subtitle, except the last one
+                    if (i < subtitles.length - 1) {
+                        const mergeRow = document.createElement('tr');
+                        mergeRow.className = 'merge-separator-row';
+                        mergeRow.innerHTML = `
+                            <td colspan="8"> <!-- colspan is 8 for 8 columns in the main row now -->
+                                <button class="merge-btn bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-1 px-2 rounded-full text-xs"
+                                        title="${translations[currentLanguage].mergeSubtitleTitle}"
+                                        data-merge-index="${i}">Merge</button>
+                            </td>
+                        `;
+                        subtitleTableBody.appendChild(mergeRow);
+                    }
+                });
+                saveToLocalStorage();
+                highlightCurrentSubtitle();
+            }
+
+            /**
+             * Loads subtitle content into the editor and updates the UI.
+             * @param {string} content - The SRT content string.
+             */
+            function loadSubtitles(content) {
+                try {
+                    subtitles = parseSRT(content);
+                    renderTable();
+                    editorSection.classList.remove('hidden');
+                    loadRegions();
+                } catch (error) {
+                    showModal("parsingErrorTitle", "parsingErrorMessage", error.message);
+                }
+            }
+            
+            /**
+             * Creates or updates WaveSurfer regions based on the current subtitles data.
+             */
+            function loadRegions() {
+                if (!wsRegions) return;
+                wsRegions.clearRegions();
+                subtitles.forEach((sub, i) => {
+                    const region = wsRegions.addRegion({
+                        start: timeToSeconds(sub.start),
+                        end: timeToSeconds(sub.end),
+                        content: sub.text.split('\n')[0],
+                        color: 'rgba(76, 175, 80, 0.2)',
+                        drag: true,
+                        resize: true,
+                    });
+                    // Link subtitle object to region via the region's unique ID
+                    sub.regionId = region.id;
+                });
+            }
+
+            /**
+             * Highlights the currently active subtitle row in the table based on video playback time.
+             */
+            function highlightCurrentSubtitle() {
+                if (!videoPlayer.src) return;
+                const currentTime = videoPlayer.currentTime;
+                document.querySelectorAll('.subtitle-row.active').forEach(row => row.classList.remove('active'));
+                const activeSub = subtitles.find(sub => currentTime >= timeToSeconds(sub.start) && currentTime < timeToSeconds(sub.end));
+                if (activeSub) {
+                    const index = subtitles.indexOf(activeSub);
+                    const row = subtitleTableBody.querySelector(`[data-index='${index}']`);
+                    if (row) {
+                        row.classList.add('active');
+                        // Removed automatic scrolling to prevent "hard focus"
+                        // row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                }
+            }
+
+            /**
+             * Merges the subtitle at the given index with the next subtitle.
+             * @param {number} index - The index of the subtitle to merge (which will absorb the next one).
+             */
+            function mergeSubtitles(index) {
+                if (index >= subtitles.length - 1) {
+                    showModal("mergeErrorTitle", "mergeErrorMessage");
+                    return;
+                }
+
+                const currentSub = subtitles[index];
+                const nextSub = subtitles[index + 1];
+
+                // Combine text, add a newline between them
+                currentSub.text = `${currentSub.text}\n${nextSub.text}`;
+                // Update end time of current subtitle to end time of next subtitle
+                currentSub.end = nextSub.end;
+
+                // Remove the next subtitle from the array
+                subtitles.splice(index + 1, 1);
+
+                // Re-index subtitles after merge
+                subtitles.forEach((sub, i) => sub.index = i + 1);
+
+                renderTable();
+                loadRegions();
+                showModal("successTitle", "subtitlesMergedMessage"); // Use translation key
+            }
+
+            /**
+             * Splits a subtitle at the current video playback time.
+             * @param {number} index - The index of the subtitle to split.
+             */
+            function splitSubtitle(index) {
+                const currentSub = subtitles[index];
+                const currentTime = videoPlayer.currentTime;
+                const startTime = timeToSeconds(currentSub.start);
+                const endTime = timeToSeconds(currentSub.end);
+
+                // Ensure split time is within the subtitle's duration and not too close to ends
+                const minDuration = 0.5; // Minimum duration for each new subtitle part
+                if (currentTime <= startTime + minDuration || currentTime >= endTime - minDuration) {
+                    showModal("splitErrorTitle", "splitErrorMessage");
+                    return;
+                }
+
+                // Split the text
+                const fullText = currentSub.text;
+                let firstPartText = '';
+                let secondPartText = '';
+
+                // Simple split based on estimated character count or line breaks
+                const avgCharPerSecond = fullText.length / (endTime - startTime);
+                const charsForFirstPart = Math.round(avgCharPerSecond * (currentTime - startTime));
+                
+                // Try to split by nearest newline if possible, otherwise by character count
+                const splitPoint = Math.min(charsForFirstPart, fullText.length);
+                let lastNewlineBeforeSplit = fullText.lastIndexOf('\n', splitPoint);
+                let firstNewlineAfterSplit = fullText.indexOf('\n', splitPoint);
+
+                if (lastNewlineBeforeSplit !== -1 && (splitPoint - lastNewlineBeforeSplit) < (firstNewlineAfterSplit === -1 ? Infinity : firstNewlineAfterSplit - splitPoint)) {
+                    // Split at the nearest newline before the split point
+                    firstPartText = fullText.substring(0, lastNewlineBeforeSplit).trim();
+                    secondPartText = fullText.substring(lastNewlineBeforeSplit + 1).trim();
+                } else if (firstNewlineAfterSplit !== -1) {
+                    // Split at the nearest newline after the split point
+                    firstPartText = fullText.substring(0, firstNewlineAfterSplit).trim();
+                    secondPartText = fullText.substring(firstNewlineAfterSplit + 1).trim();
+                } else {
+                    // Fallback to character count split if no suitable newlines
+                    firstPartText = fullText.substring(0, splitPoint).trim();
+                    secondPartText = fullText.substring(splitPoint).trim();
+                }
+
+                // Update the original subtitle
+                currentSub.end = secondsToTime(currentTime);
+                currentSub.text = firstPartText;
+
+                // Create the new subtitle
+                const newSub = {
+                    index: index + 2, // Temporarily, will be re-indexed
+                    start: secondsToTime(currentTime),
+                    end: secondsToTime(endTime),
+                    text: secondPartText
+                };
+
+                // Insert the new subtitle into the array
+                subtitles.splice(index + 1, 0, newSub);
+
+                // Re-index all subtitles
+                subtitles.forEach((sub, i) => sub.index = i + 1);
+
+                renderTable();
+                loadRegions();
+                showModal("successTitle", "subtitlesSplitMessage");
+            }
+
+
+            // --- Event Handlers ---
+
+            fileUpload.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                currentSrtFileName = file.name; // Store the filename
+                const reader = new FileReader();
+                reader.onload = (e) => loadSubtitles(e.target.result);
+                reader.readAsText(file);
+            });
+            
+            videoUpload.addEventListener('change', async (event) => { // Made async
+                const file = event.target.files[0];
+                if (!file) return;
+
+                // Set video source immediately for playback
+                const url = URL.createObjectURL(file);
+                videoPlayer.src = url;
+
+                // Generate a unique ID for this video
+                cachedVideoId = crypto.randomUUID();
+
+                try {
+                    await openDatabase(); // Ensure DB is open
+                    await saveVideoToDb(cachedVideoId, file); // Save the File object (which is a Blob)
+                    console.log("Video saved to IndexedDB with ID:", cachedVideoId);
+                } catch (error) {
+                    console.error("Failed to save video to IndexedDB:", error);
+                    // showModal already called in saveVideoToDb
+                }
+
+                // Update local storage with the new cachedVideoId
+                saveToLocalStorage();
+
+                if (wavesurfer) wavesurfer.destroy();
+                
+                waveformLoading.classList.remove('hidden');
+                
+                wavesurfer = WaveSurfer.create({
+                    container: '#waveform',
+                    waveColor: 'rgb(200, 200, 200)',
+                    progressColor: 'rgb(100, 100, 100)',
+                    media: videoPlayer, // This will use the already set videoPlayer.src
+                    height: 128, barWidth: 2, barGap: 1, barRadius: 2
+                });
+                
+                wsRegions = wavesurfer.registerPlugin(WaveSurfer.Regions.create());
+
+                wavesurfer.on('ready', () => {
+                    waveformLoading.classList.add('hidden');
+                    zoomSlider.dispatchEvent(new Event('input'));
+                    loadRegions();
+                });
+                
+                wsRegions.on('region-updated', (region) => {
+                    const sub = subtitles.find(s => s.regionId === region.id);
+                    if (sub) {
+                        sub.start = secondsToTime(region.start);
+                        sub.end = secondsToTime(region.end);
+                        renderTable();
+                    }
+                });
+            });
+            
+            zoomSlider.addEventListener('input', (e) => {
+                if (wavesurfer) wavesurfer.zoom(Number(e.target.value));
+            });
+
+            videoPlayer.addEventListener('timeupdate', highlightCurrentSubtitle);
+
+            loadSampleBtn.addEventListener('click', () => {
+                currentSrtFileName = 'sample_subtitles.srt'; // Set a name for sample
+                loadSubtitles(`1\n00:00:01,600 --> 00:00:04,200\n${translations[currentLanguage].newSubtitleText} 1.\n\n2\n00:00:05,000 --> 00:00:08,500\n${translations[currentLanguage].newSubtitleText} 2.\n`);
+            });
+
+            saveBtn.addEventListener('click', () => {
+                const blob = new Blob([toSRT(subtitles)], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                // Use the stored filename, or a default if none was loaded
+                a.download = currentSrtFileName || 'edited_subtitles.srt'; 
+                a.click();
+                URL.revokeObjectURL(url);
+                showModal("successTitle", "subtitlesSavedMessage");
+            });
+
+            addLineBtn.addEventListener('click', () => {
+                const currentTime = videoPlayer.currentTime || 0;
+                subtitles.push({
+                    index: subtitles.length + 1,
+                    start: secondsToTime(currentTime),
+                    end: secondsToTime(currentTime + 3), // Default 3s duration
+                    text: translations[currentLanguage].newSubtitleText
+                });
+                renderTable();
+                loadRegions();
+                // Now scroll the tbody to the last added element
+                subtitleTableBody.scrollTop = subtitleTableBody.scrollHeight;
+            });
+            
+            subtitleTableBody.addEventListener('click', (event) => {
+                const target = event.target;
+                // Find the closest row (either subtitle-row or merge-separator-row)
+                const row = target.closest('.subtitle-row') || target.closest('.merge-separator-row');
+                if (!row) return;
+
+                // Determine if the click was on a subtitle row or a merge separator row
+                const isSubtitleRow = row.classList.contains('subtitle-row');
+                let index;
+
+                if (isSubtitleRow) {
+                    index = parseInt(row.dataset.index, 10);
+                } else { // It's a merge-separator-row
+                    // The merge button itself has the data-merge-index
+                    if (target.closest('.merge-btn')) {
+                        index = parseInt(target.dataset.mergeIndex, 10);
+                    } else {
+                        return; // Clicked on the separator row but not on the button
+                    }
+                }
+
+                const startTime = isSubtitleRow ? parseFloat(row.dataset.startTime) : (subtitles[index] ? timeToSeconds(subtitles[index].start) : 0);
+                const sub = subtitles[index]; // Get the full subtitle object
+                const endTime = sub ? timeToSeconds(sub.end) : 0;
+
+
+                if (target.closest('.set-start-btn')) {
+                    subtitles[index].start = secondsToTime(videoPlayer.currentTime);
+                } else if (target.closest('.set-end-btn')) {
+                    subtitles[index].end = secondsToTime(videoPlayer.currentTime);
+                } else if (target.closest('.delete-btn')) {
+                    subtitles.splice(index, 1);
+                } else if (target.closest('.play-stop-btn')) { // Handle Play/Stop button
+                    if (videoPlayer.paused) {
+                        // If paused, always play.
+                        // If current time is outside this subtitle's range, seek to start.
+                        if (videoPlayer.currentTime < startTime || videoPlayer.currentTime >= endTime) {
+                            videoPlayer.currentTime = startTime;
+                        }
+                        videoPlayer.play();
+                        if (wavesurfer) wavesurfer.play();
+                    } else {
+                        // If playing, check if currently playing THIS subtitle.
+                        // If current time is within this subtitle's range, pause.
+                        if (videoPlayer.currentTime >= startTime && videoPlayer.currentTime < endTime) {
+                            videoPlayer.pause();
+                            if (wavesurfer) wavesurfer.pause();
+                        } else {
+                            // If playing a different subtitle, seek to this one and play.
+                            videoPlayer.currentTime = startTime;
+                            videoPlayer.play();
+                            if (wavesurfer) wavesurfer.play();
+                        }
+                    }
+                } else if (target.closest('.play-from-start-btn')) { // Handle Play from Start button
+                    if (videoPlayer.src) {
+                        videoPlayer.currentTime = startTime;
+                        videoPlayer.play();
+                        if (wavesurfer) wavesurfer.play();
+                    }
+                } else if (target.closest('.split-btn')) { // Handle new Split button
+                    splitSubtitle(index);
+                } else if (target.closest('.merge-btn')) { // Handle merge button click
+                    // The index for merge is already correctly extracted from data-merge-index above
+                    mergeSubtitles(index);
+                } else if (target.classList.contains('editable-cell')) {
+                    // Ensure index is from subtitle row for editable cells
+                    if (!isSubtitleRow) return; // Prevent editing if clicked on merge row's td
+                    
+                    const field = target.dataset.field;
+                    const newValue = prompt(`${translations[currentLanguage].editPrompt}${translations[currentLanguage][`tableHeader${field.charAt(0).toUpperCase() + field.slice(1)}`] || field}:`, subtitles[index][field]);
+                    if (newValue !== null) {
+                        if (field === 'start' || field === 'end') {
+                            const tempSeconds = timeToSeconds(newValue);
+                            if (secondsToTime(tempSeconds) === newValue) {
+                                subtitles[index][field] = newValue;
+                            } else {
+                                showModal("invalidTimeFormatTitle", "invalidTimeFormatMessage");
+                                return;
+                            }
+                        } else {
+                            subtitles[index][field] = newValue;
+                        }
+                    }
+                } else if (isSubtitleRow && videoPlayer.src) { // Only seek on subtitle row click, not merge row
+                    videoPlayer.currentTime = startTime;
+                    // Don't auto-play on general row click, let the play/stop or play-from-start button handle it
+                }
+                
+                renderTable();
+                loadRegions();
+            });
+
+            function saveToLocalStorage() {
+                try {
+                    localStorage.setItem('subtitleEditorData', JSON.stringify({ subtitles, currentSrtFileName, cachedVideoId })); // Save cachedVideoId
+                } catch (e) { console.error("Could not save to local storage", e); }
+            }
+
+            async function loadFromLocalStorage() { // Made async
+                try {
+                    const data = JSON.parse(localStorage.getItem('subtitleEditorData'));
+                    console.log("loadFromLocalStorage: Data from localStorage:", data); // Added log
+                    if (data) {
+                        if (data.subtitles?.length > 0) {
+                            subtitles = data.subtitles;
+                            renderTable();
+                            editorSection.classList.remove('hidden');
+                        }
+                        if (data.currentSrtFileName) {
+                            currentSrtFileName = data.currentSrtFileName;
+                        }
+                        
+                        // Try to load cached video
+                        if (data.cachedVideoId) {
+                            cachedVideoId = data.cachedVideoId;
+                            console.log("loadFromLocalStorage: Found cachedVideoId:", cachedVideoId); // Added log
+                            try {
+                                // openDatabase() is now called before loadFromLocalStorage, so 'db' should be ready
+                                const videoBlob = await loadVideoFromDb(cachedVideoId);
+                                console.log("loadFromLocalStorage: Result of loadVideoFromDb:", videoBlob); // Added log
+                                if (videoBlob) {
+                                    const url = URL.createObjectURL(videoBlob);
+                                    videoPlayer.src = url;
+                                    // Initialize wavesurfer with the loaded video blob
+                                    if (wavesurfer) wavesurfer.destroy(); // Destroy existing if any
+                                    waveformLoading.classList.remove('hidden');
+                                    wavesurfer = WaveSurfer.create({
+                                        container: '#waveform',
+                                        waveColor: 'rgb(200, 200, 200)',
+                                        progressColor: 'rgb(100, 100, 100)',
+                                        media: videoPlayer, // Use the video player with the loaded src
+                                        height: 128, barWidth: 2, barGap: 1, barRadius: 2
+                                    });
+                                    wsRegions = wavesurfer.registerPlugin(WaveSurfer.Regions.create());
+                                    wavesurfer.on('ready', () => {
+                                        waveformLoading.classList.add('hidden');
+                                        zoomSlider.dispatchEvent(new Event('input'));
+                                        loadRegions();
+                                    });
+                                    showModal("sessionRestoredTitle", "sessionRestoredVideoMessage"); // Specific message for video loaded
+                                } else {
+                                    console.log("loadFromLocalStorage: videoBlob was null, showing generic message."); // Added log
+                                    showModal("sessionRestoredTitle", "sessionRestoredMessage"); // General message if video not found
+                                }
+                            } catch (error) {
+                                console.error("Failed to load cached video:", error);
+                                showModal("sessionRestoredTitle", "sessionRestoredMessage"); // Fallback message on error
+                            }
+                        } else {
+                            console.log("loadFromLocalStorage: No cachedVideoId found, showing generic message."); // Added log
+                            showModal("sessionRestoredTitle", "sessionRestoredMessage"); // General message if no cached video ID
+                        }
+                    } else {
+                        console.log("loadFromLocalStorage: No data found in localStorage, showing generic message."); // Added log
+                        showModal("sessionRestoredTitle", "sessionRestoredMessage"); // General message if no data
+                    }
+                } catch (e) { console.error("Could not load from local storage", e); }
+            }
+            
+            modalCloseBtn.addEventListener('click', () => messageModal.classList.add('hidden'));
+            modalMessage.addEventListener('click', (e) => { if (e.target === modalMessage) messageModal.classList.add('hidden'); });
+
+            // Global keydown listener for spacebar play/pause
+            window.addEventListener('keydown', (event) => {
+                // Check if the spacebar is pressed and if the target is not an input field or textarea
+                if (event.code === 'Space' && 
+                    event.target.tagName !== 'INPUT' && 
+                    event.target.tagName !== 'TEXTAREA' &&
+                    !event.target.classList.contains('editable-cell')) {
+                    
+                    event.preventDefault(); // Prevent default spacebar action (e.g., scrolling)
+
+                    if (videoPlayer.paused) {
+                        videoPlayer.play();
+                        if (wavesurfer) wavesurfer.play();
+                    } else {
+                        videoPlayer.pause();
+                        if (wavesurfer) wavesurfer.pause();
+                    }
+                }
+            });
+
+            // Language selection event listener
+            languageSelect.addEventListener('change', (event) => {
+                setLanguage(event.target.value);
+            });
+
+            // Initial load logic
+            // Open IndexedDB database as soon as DOM is ready
+            try {
+                db = await openDatabase(); 
+                console.log("IndexedDB opened successfully on DOMContentLoaded. DB instance:", db); // Added log
+            } catch (error) {
+                console.error("Failed to open IndexedDB on DOMContentLoaded:", error);
+                // showModal already called in openDatabase, no need to repeat
+            }
+
+            setLanguage(currentLanguage); // Set language immediately on DOMContentLoaded
+            loadFromLocalStorage(); // Then load data from local storage including cached video
+
+        }); // End of DOMContentLoaded
+    </script>
+</body>
+</html>
