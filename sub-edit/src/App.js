@@ -206,6 +206,30 @@ function App() {
     saveVideoToDB(file);
   };
 
+  const loadRegions = React.useCallback(() => {
+    if (!regionsRef.current) return;
+    regionsRef.current.clearRegions();
+    regionMapRef.current = {};
+    subsRef.current.forEach((sub, idx) => {
+      const r = regionsRef.current.addRegion({
+        start: timeToSeconds(sub.start),
+        end: timeToSeconds(sub.end),
+        content: sub.text.split('\n')[0],
+        color: 'rgba(76, 175, 80, 0.2)',
+        drag: true,
+        resize: true
+      });
+      regionMapRef.current[r.id] = r;
+      sub.regionId = r.id;
+      r.element.addEventListener('click', () => {
+        const clickIdx = subsRef.current.findIndex(s => s.regionId === r.id);
+        if (clickIdx !== -1) {
+          setActiveIndex(clickIdx);
+        }
+      });
+    });
+  }, []);
+
   const initWaveform = React.useCallback(() => {
     if (!waveformRef.current || !videoRef.current) return;
     if (wavesurferRef.current) {
@@ -243,30 +267,6 @@ function App() {
       }
     });
   }, [zoom, loadRegions]);
-
-  const loadRegions = React.useCallback(() => {
-    if (!regionsRef.current) return;
-    regionsRef.current.clearRegions();
-    regionMapRef.current = {};
-    subsRef.current.forEach((sub, idx) => {
-      const r = regionsRef.current.addRegion({
-        start: timeToSeconds(sub.start),
-        end: timeToSeconds(sub.end),
-        content: sub.text.split('\n')[0],
-        color: 'rgba(76, 175, 80, 0.2)',
-        drag: true,
-        resize: true
-      });
-      regionMapRef.current[r.id] = r;
-      sub.regionId = r.id;
-      r.element.addEventListener('click', () => {
-        const clickIdx = subsRef.current.findIndex(s => s.regionId === r.id);
-        if (clickIdx !== -1) {
-          setActiveIndex(clickIdx);
-        }
-      });
-    });
-  }, []);
 
   const updateSub = (idx, newSub) => {
     const next = subs.slice();
