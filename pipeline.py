@@ -49,15 +49,18 @@ class SubtitlePipeline:
 
         # Output artifacts
         self.out_path = self.directory / f"{self.subtitle_name}_0_mod.srt"
+
         self.srt_csv_file = self.directory / f"{self.subtitle_name}_1.0_srt.csv"
         self.output_csv_with_speakers = self.directory / f"{self.subtitle_name}_1.5_output_speakers.csv"
         self.output_with_preview_speeds_csv = self.directory / f"{self.subtitle_name}_3.0_output_speed.csv"
         self.corrected_time_output_speed_csv = self.directory / f"{self.subtitle_name}_4_corrected_output_speed.csv"
+
         self.output_audio_file = self.directory / f"{self.subtitle_name}_5.0_output_audiotrack_eng.wav"
         self.stereo_eng_file = self.directory / f"{self.subtitle_name}_5.3_stereo_eng.wav"
         self.out_ukr_wav = self.directory / f"{self.subtitle_name}_5.5_out_ukr.wav"
         self.acomponiment = self.directory / f"{self.subtitle_name}_5.7_accompaniment_ukr.wav"
         self.output_ukr_wav = self.directory / f"{self.subtitle_name}_6_out_reduced_ukr.wav"
+        
         self.mix_video = self.output_folder / f"{self.subtitle_name}_out_mix.mp4"
 
     def run(self, video_path: str) -> None:
@@ -115,8 +118,7 @@ class SubtitlePipeline:
 
     def _extract_ukrainian_audio(self, video_path: str) -> None:
         if not self.out_ukr_wav.exists():
-            command = ffmpeg_utils.extract_audio(video_path, self.out_ukr_wav)
-            ffmpeg_utils.run(command)
+            ffmpeg_utils.extract_audio(video_path, self.out_ukr_wav)
 
     def _separate_accompaniment(self) -> None:
         if not self.acomponiment.exists():
@@ -141,10 +143,7 @@ class SubtitlePipeline:
         ext = Path(video_path).suffix.lower()
         self.mix_video = self.directory.parent / f"{self.subtitle_name}_out_mix{ext}"
         if not self.mix_video.exists():
-            command = ffmpeg_utils.create_ffmpeg_mix_video_file_command(
-                video_path, self.output_ukr_wav, self.stereo_eng_file, self.mix_video
-            )
-            ffmpeg_utils.run(command)
+            ffmpeg_utils.create_ffmpeg_mix_video(video_path, self.output_ukr_wav, self.stereo_eng_file, self.mix_video)
 
     @staticmethod
     def list_subtitle_files(root_dir: str | Path, extension: str, exclude_ext: str) -> list[str]:
