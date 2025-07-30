@@ -11,7 +11,7 @@ from omegaconf import OmegaConf
 from importlib.resources import files
 from hydra.utils import get_class
 import librosa
-from stt import wav2txt
+import stt
 import re
 import subtitle_csv
 import difflib
@@ -240,7 +240,7 @@ class F5TTS:
 
 
     def is_generated_text_equal_to_subtitles_text(self,wav,subtitles_text):
-        gen_text = wav2txt(wav)
+        gen_text = stt.wav2txt(wav)
         gen_text = self.clean_text(gen_text)
         subtitles_text = self.clean_text(subtitles_text)
         similarity = self.similarity(gen_text,subtitles_text)
