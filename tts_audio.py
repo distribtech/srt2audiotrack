@@ -46,6 +46,7 @@ class F5TTS:
 
         self.load_vocoder_model(vocoder_name, local_path)
         self.load_ema_model(model_type, ckpt_file, vocoder_name, vocab_file, ode_method, use_ema)
+        self.stt_model = stt.create_model()
 
     def load_vocoder_model(self, vocoder_name, local_path):
         self.vocoder = load_vocoder(vocoder_name, local_path is not None, local_path, self.device)
@@ -240,7 +241,7 @@ class F5TTS:
 
 
     def is_generated_text_equal_to_subtitles_text(self,wav,subtitles_text):
-        gen_text = stt.wav2txt(wav)
+        gen_text = stt.wav2txt(self.stt_model,wav)
         gen_text = self.clean_text(gen_text)
         subtitles_text = self.clean_text(subtitles_text)
         similarity = self.similarity(gen_text,subtitles_text)
