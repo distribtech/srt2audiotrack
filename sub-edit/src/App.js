@@ -367,10 +367,12 @@ function App() {
   const highlightRegion = idx => {
     if (!regionsRef.current) return;
     Object.values(regionMapRef.current).forEach(r => {
-      r.element.style.backgroundColor = 'rgba(76, 175, 80, 0.2)';
+      if (r && r.element) {
+        r.element.style.backgroundColor = 'rgba(76, 175, 80, 0.2)';
+      }
     });
     const regionId = subsRef.current[idx]?.regionId;
-    if (regionId && regionMapRef.current[regionId]) {
+    if (regionId && regionMapRef.current[regionId] && regionMapRef.current[regionId].element) {
       regionMapRef.current[regionId].element.style.backgroundColor =
         'rgba(255, 165, 0, 0.4)';
     }
