@@ -8,7 +8,7 @@ CALL "venv\Scripts\activate.bat"
 
 REM === Main loop ===
 :loop
-python main.py --subtitle "%SUBTITLE_FOLDER%" --output_folder "%SUBTITLE_FOLDER%"
+python -m srt2audiotrack --subtitle "%SUBTITLE_FOLDER%" --output_folder "%SUBTITLE_FOLDER%"
 IF ERRORLEVEL 1 (
     echo [ERROR] Script crashed. Waiting before retry...
     timeout /t 5
