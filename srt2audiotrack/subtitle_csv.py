@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import srt
 from pathlib import Path
-import tts_audio
+from . import tts_audio
 
 def format_timedelta(td: timedelta) -> str:
     """

@@ -5,21 +5,21 @@ import types
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-import vocabulary
+from srt2audiotrack import vocabulary
 for name in ['subtitle_csv', 'tts_audio', 'sync_utils', 'ffmpeg_utils']:
-    sys.modules[name] = types.ModuleType(name)
+    sys.modules[f'srt2audiotrack.{name}'] = types.ModuleType(name)
 
-audio_stub = types.ModuleType('audio_utils')
+audio_stub = types.ModuleType('srt2audiotrack.audio_utils')
 def _stub(*args, **kwargs):
     pass
 audio_stub.convert_mono_to_stereo = _stub
 audio_stub.normalize_stereo_audio = _stub
 audio_stub.extract_acomponiment_or_vocals = _stub
 audio_stub.adjust_stereo_volume_with_librosa = _stub
-sys.modules['audio_utils'] = audio_stub
-sys.modules['vocabulary'] = vocabulary
+sys.modules['srt2audiotrack.audio_utils'] = audio_stub
+sys.modules['srt2audiotrack.vocabulary'] = vocabulary
 
-import pipeline
+import srt2audiotrack.pipeline as pipeline
 
 def test_prepare_subtitles_creates_in_output_folder(tmp_path):
     subtitle = tmp_path / "sample.srt"
