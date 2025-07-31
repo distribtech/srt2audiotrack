@@ -3,13 +3,13 @@
 import os
 from pathlib import Path
 
-import subtitle_csv
-import tts_audio
-import sync_utils
-import audio_utils
-import ffmpeg_utils
-import vocabulary
-from audio_utils import (
+from . import subtitle_csv
+from . import tts_audio
+from . import sync_utils
+from . import audio_utils
+from . import ffmpeg_utils
+from . import vocabulary
+from .audio_utils import (
     convert_mono_to_stereo,
     normalize_stereo_audio,
     extract_acomponiment_or_vocals,

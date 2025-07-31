@@ -1,8 +1,8 @@
 import argparse
 from pathlib import Path
-from subtitle_csv import get_speakers_from_folder, check_texts, check_speeds_csv
-from vocabulary import check_vocabular
-from pipeline import SubtitlePipeline
+from .subtitle_csv import get_speakers_from_folder, check_texts, check_speeds_csv
+from .vocabulary import check_vocabular
+from .pipeline import SubtitlePipeline
 
 
 def main():

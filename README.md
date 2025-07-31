@@ -25,9 +25,9 @@ conda activate f5-tts-demucs
   ```
 
 ## Usage
-Run the main script by providing a folder that contains videos and matching `.srt` subtitle files:
+Run the application as a module by providing a folder that contains videos and matching `.srt` subtitle files:
 ```bash
-python main.py --subtitle records\one_voice
+python -m srt2audiotrack --subtitle records\one_voice
 ```
 The processed videos will be saved in the folder specified by `--output_folder`
 (or next to the subtitles if not provided) with the suffix `_out_mix.mp4`.
@@ -40,7 +40,28 @@ The processed videos will be saved in the folder specified by `--output_folder`
 - `--voice_coef` – proportion of generated voice in the final mix (default: `0.2`).
 - `--output_folder` – directory where all intermediate and result files will be stored.
 
-Run `python main.py -h` to see all available options.
+Run `python -m srt2audiotrack -h` to see all available options.
+
+### Using as a module
+`SubtitlePipeline` can be imported directly and used in web applications. Only a few paths and speaker settings are required:
+
+```python
+from pathlib import Path
+from srt2audiotrack import SubtitlePipeline
+
+SubtitlePipeline.create_video_with_english_audio(
+    "video.mp4",
+    Path("subtitles.srt"),
+    speakers,
+    default_speaker,
+    Path("vocabular.txt"),
+    acomponiment_coef=0.3,
+    voice_coef=0.2,
+    output_folder=Path("out"),
+)
+```
+
+An example React GUI that works with this module is available in the `sub-edit` folder.
 
 ## Notes
 The `VOICE` subfolder should contain reference speaker audio files together with their texts and generated `speeds.csv` files. See `tests/one_voice` for an example structure.

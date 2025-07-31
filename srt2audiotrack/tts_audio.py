@@ -11,9 +11,9 @@ from omegaconf import OmegaConf
 from importlib.resources import files
 from hydra.utils import get_class
 import librosa
-import stt
+from . import stt
 import re
-import subtitle_csv
+from . import subtitle_csv
 import difflib
 
 
