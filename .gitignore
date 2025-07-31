@@ -2,4 +2,4 @@ tts-recursive_oterra_standart.bat
 __pycache__/
 node_modules/
 sub-edit/node_modules/
-sub-edit1/node_modules/
+venv/

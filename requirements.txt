@@ -1,3 +1,8 @@
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch
+torchvision
+torchaudio
+
 accelerate==1.7.0
 aiofiles==24.1.0
 aiohappyeyeballs==2.6.1
@@ -146,13 +151,10 @@ tensorflow-docs @ git+https://github.com/tensorflow/docs@a8576cef38b7182e6228d7a
 threadpoolctl==3.6.0
 tiktoken==0.9.0
 tokenizers==0.21.1
-toml @ file:///tmp/build/80754af9/toml_1616166611790/work
+toml
 tomli==2.2.1
 tomlkit==0.13.2
-torch==2.7.0+cu128
-torchaudio==2.7.0
 torchdiffeq==0.2.5
-torchvision==0.22.0+cu128
 tqdm==4.67.1
 transformers==4.52.3
 transformers-stream-generator==0.0.5
