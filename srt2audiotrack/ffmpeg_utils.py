@@ -8,14 +8,29 @@ def parse_volume_intervals(csv_file) -> list[tuple[str, str]]:
         reader = csv.DictReader(file)
         return [(row['Start Time'], row['End Time']) for row in reader]
 
-# Create the ffmpeg command to reduce volume in specified intervals
-def extract_audio(input_video, output_audio):
-    """Create an FFmpeg command to extract raw audio from ``input_video``."""
-
-    run (
-        ffmpeg.input(str(input_video))
-        .output(str(output_audio), acodec="pcm_s16le")
+def extract_audio(input_video, output_audio, target_lufs=-16.0, target_peak=-1.0):
+    """Extract and normalize audio from video file.
+    
+    Args:
+        input_video: Path to input video file
+        output_audio: Path to save output audio file
+        target_lufs: Target loudness in LUFS (default: -16.0, typical for streaming)
+        target_peak: True peak value in dB (default: -1.0)
+    """
+    (
+        ffmpeg
+        .input(str(input_video))
+        .audio
+        .filter('loudnorm',
+                i=target_lufs,
+                tp=target_peak)
+        .output(str(output_audio),
+                acodec='pcm_s16le',
+                # ar='44100',  # Standard CD quality sample rate
+                # ac=2 # Stereo audio
+                )      
         .overwrite_output()
+        .run()
     )
 
 # Create the ffmpeg command to mix two audio files

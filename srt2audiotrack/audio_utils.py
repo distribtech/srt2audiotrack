@@ -25,6 +25,9 @@ def extract_acomponiment_or_vocals(directory, subtitle_name, out_ukr_wav,
     
     if acomponiment_temp.exists():
             # Load and normalize the audio
+            y, sr = librosa.load(acomponiment_temp, sr=44100)  # load with 44.1k
+            y_16k = librosa.resample(y, orig_sr=44100, target_sr=sample_rate)
+            sf.write(acomponiment_temp, y_16k, sample_rate)
             convert_mono_to_stereo(acomponiment_temp, acomponiment_temp_stereo)
             normalize_stereo_audio(acomponiment_temp_stereo, acomponiment)
             # Clean up
