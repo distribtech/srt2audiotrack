@@ -2,20 +2,31 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Current File (Conda)",
+            "name": "Python: srt2audiotrack (local)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "srt2audiotrack",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--subtitle",
+                "local",
+                "--output_folder",
+                "local/output",
+                "--debug"
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "SUBTITLE_FOLDER": "local"
+            }
+        },
+        {
+            "name": "Python: Current File",
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "python": "C:\\Users\\Admin\\.conda\\envs\\f5-tts-demucs\\python.exe",
-            "args": [
-                "--subtitle",
-                "tests/one_voice/input",
-                "--output_folder",
-                "tests/one_voice/output",
-                "-c",
-                ".vscode/one_voice.toml"    
-            ],
+            "justMyCode": true,
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
             }

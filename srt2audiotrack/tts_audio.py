@@ -240,8 +240,8 @@ class F5TTS:
         return difflib.SequenceMatcher(None, gen_text, subtitles_text).ratio()
 
 
-    def is_generated_text_equal_to_subtitles_text(self,wav,subtitles_text):
-        gen_text = stt.wav2txt(self.stt_model,wav)
+    def is_generated_text_equal_to_subtitles_text(self,wav,sr,subtitles_text):
+        gen_text = stt.wav2txt(self.stt_model, wav, sr)
         gen_text = self.clean_text(gen_text)
         subtitles_text = self.clean_text(subtitles_text)
         similarity = self.similarity(gen_text,subtitles_text)
@@ -285,7 +285,7 @@ class F5TTS:
 
                 print(f"Generated WAV-{i} with symbol duration {previous_duration}")        
                 generated_segments.append((wav, file_wave, sr)) 
-                is_equal,gen_text,subtitles_text, similarity = self.is_generated_text_equal_to_subtitles_text(wav,gen_text)
+                is_equal,gen_text,subtitles_text, similarity = self.is_generated_text_equal_to_subtitles_text(wav, sr, gen_text)
                 writer.writerow({**row, "similarity": f"{similarity:.2f}", "gen_error": "1" if not is_equal else "0", "whisper_text": gen_text, "subtitle_text": subtitles_text})
             
             # Reset to the beginning of the file
