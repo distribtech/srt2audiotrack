@@ -10,20 +10,25 @@ import librosa
 
 
 def extract_acomponiment_or_vocals(directory, subtitle_name, out_ukr_wav,
+        sample_rate,
         pipeline_suffix="_extracted.wav",
         model_demucs = "mdx_extra",
-        sound_name="no_vocals.wav"
+        sound_name="no_vocals.wav",
+        subtype='PCM_16'  # Use 16-bit PCM
     ):
     acomponiment = directory / f"{subtitle_name}{pipeline_suffix}"    
     model_folder = directory / model_demucs
     demucs_folder = model_folder / out_ukr_wav.stem
     acomponiment_temp = demucs_folder / sound_name
-
+    acomponiment_temp_stereo = directory / f"{subtitle_name}{pipeline_suffix}_stereo.wav"
     demucs.separate.main(["--jobs", "4","-o", str(directory), "--two-stems", "vocals", "-n", model_demucs, str(out_ukr_wav)])
     
     if acomponiment_temp.exists():
-        shutil.move(demucs_folder / sound_name, acomponiment)
-        shutil.rmtree(model_folder)
+            # Load and normalize the audio
+            convert_mono_to_stereo(acomponiment_temp, acomponiment_temp_stereo)
+            normalize_stereo_audio(acomponiment_temp_stereo, acomponiment)
+            # Clean up
+            shutil.rmtree(model_folder)
 
     # Verify the accompaniment exists and is valid
     if not acomponiment.exists():
@@ -100,7 +105,7 @@ def convert_mono_to_stereo(input_path: str, output_path: str):
     print(f"Converted {input_path} to stereo and saved as {output_path}")
 
 
-def normalize_stereo_audio(input_path: str, output_path: str, target_db: float = -12.0):
+def normalize_stereo_audio(input_path: str, output_path: str, target_db: float = -18.0):
     audio, sr = librosa.load(input_path, sr=None, mono=False)
 
     if audio.ndim == 1:

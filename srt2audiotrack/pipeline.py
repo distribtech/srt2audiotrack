@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+import librosa
 
 from . import subtitle_csv
 from . import tts_audio
@@ -62,6 +63,7 @@ class SubtitlePipeline:
         self.output_ukr_wav = self.directory / f"{self.subtitle_name}_6_out_reduced_ukr.wav"
         
         self.mix_video = self.output_folder / f"{self.subtitle_name}_out_mix.mp4"
+        self.sample_rate = None
 
     def run(self, video_path: str) -> None:
         self.directory.mkdir(parents=True, exist_ok=True)
@@ -148,7 +150,10 @@ class SubtitlePipeline:
 
     def _separate_accompaniment(self) -> None:
         if not self.acomponiment.exists():
-            extracted = extract_acomponiment_or_vocals(self.directory, self.subtitle_name, self.out_ukr_wav)
+            self.sample_rate = librosa.get_samplerate(self.out_ukr_wav)
+            extracted = extract_acomponiment_or_vocals(
+                self.directory, self.subtitle_name, self.out_ukr_wav,
+                sample_rate=self.sample_rate)
             normalize_stereo_audio(extracted, self.acomponiment)
             os.remove(extracted)
 
