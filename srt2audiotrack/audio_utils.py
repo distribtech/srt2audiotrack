@@ -135,6 +135,7 @@ def normalize_stereo_audio(input_path: str, output_path: str, target_db: float =
     print(f"Normalized {input_path} to {target_db} dB per channel and saved as {output_path}")
 
 def adjust_stereo_volume_with_librosa(
+        original_wav,
         input_audio,
         output_audio,
         volume_intervals,
@@ -155,6 +156,7 @@ def adjust_stereo_volume_with_librosa(
     # Load audio file with stereo channels
     y, sr = librosa.load(input_audio, sr=None, mono=False)
     a, sr = librosa.load(acomponiment, sr=None, mono=False)
+    original, sr = librosa.load(original_wav, sr=None, mono=False)
 
     # Convert time to sample index
     for start_time, end_time in volume_intervals:
@@ -163,7 +165,10 @@ def adjust_stereo_volume_with_librosa(
         end_sample = int(librosa.time_to_samples(float(end_time), sr=sr))
 
         # Apply volume adjustment in the given range for both channels
-        y[:, start_sample:end_sample] =  y[:, start_sample:end_sample] * voice_coef + a[:, start_sample:end_sample]*(1-voice_coef)*acomponiment_coef
+        y[:, start_sample:end_sample] = \
+             y[:, start_sample:end_sample] * (1 - acomponiment_coef - voice_coef) +\
+             a[:, start_sample:end_sample]*acomponiment_coef + \
+             original[:, start_sample:end_sample]*voice_coef
 
     # Save the modified audio
     sf.write(output_audio, y.T, sr)  # Transpose y to match the expected shape for stereo

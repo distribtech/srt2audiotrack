@@ -42,6 +42,39 @@ The processed videos will be saved in the folder specified by `--output_folder`
 
 Run `python -m srt2audiotrack -h` to see all available options.
 
+## Pipeline Overview
+
+```
+Input Files:
+  video.mp4
+  subtitles.srt
+
+  ┌─────────────────┐     ┌─────────────────┐     ┌──────────────────────┐
+  │ 1. Extract      │     │ 2. Generate     │     │ 3. Process           │
+  │    Audio        │────▶│    TTS Audio    │────▶│    Audio Mix        │
+  └─────────────────┘     └─────────────────┘     │   ┌──────────────┐   │
+                                                  │   │  Original    │   │
+  ┌─────────────────┐     ┌─────────────────┐     │   │  Video       │   │
+  │ 4. Separate     │     │ 5. Adjust       │     │   └──────┬───────┘   │
+  │    Vocals       │────▶│    Volume       │────▶│           │           │
+  └─────────────────┘     └─────────────────┘     │   ┌──────▼───────┐   │
+                                                  │   │  TTS Voice   │   │
+  ┌─────────────────┐     ┌─────────────────┐     │   │              │   │
+  │ 6. Extract      │     │ 7. Mix          │     │   └──────┬───────┘   │
+  │    Accompaniment│────▶│    Audio        │────▶│           │           │
+  └─────────────────┘     └─────────────────┘     │   ┌──────▼───────┐   │
+                                                  │   │  Accompaniment│   │
+                                                  │   │  (Music/SFX)  │   │
+                                                  │   └──────┬───────┘   │
+                                                  │          │           │
+                                                  └──────────┼───────────┘
+                                                           │
+                                                      ┌─────▼────┐
+                                                      │  Output  │
+                                                      │  Video   │
+                                                      └──────────┘
+```
+
 ### Using as a module
 `SubtitlePipeline` can be imported directly and used in web applications. Only a few paths and speaker settings are required:
 

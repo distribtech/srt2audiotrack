@@ -33,7 +33,7 @@ def main():
     # Add config
     parser.add_argument('--config', "-c", type=str, help="Config file", default="basic.toml")
     # Add acomponiment coeficient
-    parser.add_argument('--acomponiment_coef', type=float, help="Acomponiment coeficient", default=0.3)
+    parser.add_argument('--acomponiment_coef', type=float, help="Acomponiment coeficient", default=0.2)
     # Add voice coeficient
     parser.add_argument('--voice_coef', type=float, help="Voice coeficient", default=0.2)
     # Add output folder

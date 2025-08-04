@@ -162,6 +162,7 @@ class SubtitlePipeline:
             volume_intervals = ffmpeg_utils.parse_volume_intervals(self.srt_csv_file)
             normalize_stereo_audio(self.acomponiment, self.output_ukr_wav)
             adjust_stereo_volume_with_librosa(
+                self.out_ukr_wav,
                 self.acomponiment,
                 self.output_ukr_wav,
                 volume_intervals,
