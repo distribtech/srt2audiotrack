@@ -249,61 +249,151 @@ class F5TTS:
             print(f"ALARM !!! Generated text: {gen_text} != Subtitles text: {subtitles_text} \n Similarity: {similarity}")
         return gen_text == subtitles_text,gen_text,subtitles_text,similarity 
 
-    def generate_from_csv_with_speakers(self, csv_file, output_folder, speakers, default_speaker, rewrite=False):
-        os.makedirs(output_folder, exist_ok=True)
-        filename_errors_csv = f"{str(csv_file)[:-4]}_errors.csv"
-        with open(csv_file, 'r', encoding='utf-8') as csvfile, \
-             open(filename_errors_csv, 'w', newline='', encoding='utf-8') as csv_writer:
-            reader = csv.DictReader(csvfile)
-            writer_filednames = [*reader.fieldnames, "similarity","gen_error","whisper_text","subtitle_text"]
-            writer = csv.DictWriter(csv_writer, fieldnames=writer_filednames, delimiter=';')
-            writer.writeheader()
-            generated_segments = []
-            generated_texts = []
-            for i, row in enumerate(reader):
-                file_wave = os.path.join(output_folder, f"segment_{i + 1}.wav")
-                if not rewrite and os.path.exists(file_wave):
-                    continue
-                duration = float(row['Duration'])
-                gen_text = row['Text']
-                generated_texts.append(gen_text)
-                previous_speed = float(row.get('TTS Speed Closest', 1.0))  # Read the speed from `speed_tts_closest`, default to 1.0 if missing
+    def _get_speaker_config(self, row, speakers, default_speaker):
+        """Get speaker configuration for the given row."""
+        try:
+            speaker_name = row.get('Speaker', '')
+            if speaker_name and speaker_name in speakers:
+                return speakers[speaker_name]["ref_text"], speakers[speaker_name]["ref_file"]
+            raise KeyError(f"Speaker '{speaker_name}' not found")
+        except Exception as e:
+            print(f"Using default speaker: {str(e)}")
+            return default_speaker["ref_text"], default_speaker["ref_file"]
 
-                try:
-                    speaker_name = row['Speaker']
-                    ref_text = speakers[speaker_name]["ref_text"]
-                    ref_file = speakers[speaker_name]["ref_file"]
-                except:
-                    print("Something is wrong. Let's take default speaker")
-                    ref_text = default_speaker["ref_text"]
-                    ref_file = default_speaker["ref_file"]
+    def _generate_audio_segment(self, gen_text, duration, ref_text, ref_file, previous_speed, i):
+        """Generate audio segment for the given text and configuration."""
+        try:
+            wav, sr, _ = self.infer_wav(gen_text, previous_speed, ref_file, ref_text)
+            wav, sr, _ = self.generate_wav_if_longer(
+                wav, sr, gen_text, duration, len(wav)/sr, previous_speed, 
+                ref_file, ref_text, i
+            )
+            return wav, sr, None
+        except Exception as e:
+            return None, None, str(e)
 
-                file_wave_debug = None # f"segment_{i}_speed_{previous_speed}.wav" # for debug
-                wav, sr, previous_duration = self.infer_wav(gen_text, previous_speed, ref_file, ref_text,file_wave=file_wave_debug)
-                
-                wav, sr, previous_duration = self.generate_wav_if_longer(wav, sr, gen_text, duration, previous_duration, previous_speed, ref_file, ref_text, i)
-
-                print(f"Generated WAV-{i} with symbol duration {previous_duration}")        
-                generated_segments.append((wav, file_wave, sr)) 
-                is_equal,gen_text,subtitles_text, similarity = self.is_generated_text_equal_to_subtitles_text(wav, sr, gen_text)
-                writer.writerow({**row, "similarity": f"{similarity:.2f}", "gen_error": "1" if not is_equal else "0", "whisper_text": gen_text, "subtitle_text": subtitles_text})
-            
-            # Reset to the beginning of the file
-            csvfile.seek(0)
-            # Re-create the DictReader to re-parse the header row
-            reader = csv.DictReader(csvfile)      
-            
-            for i, row in enumerate(reader):
-                wav, file_wave, sr = generated_segments[i]
-                generated_texts.append(row['Text'])
+    def _save_audio_segments(self, generated_segments):
+        """Save all generated audio segments to files."""
+        for wav, file_wave, sr in generated_segments:
+            try:
                 sf.write(file_wave, wav, sr)
                 print(f"Saved WAV as {file_wave}")
+            except Exception as e:
+                print(f"Error saving {file_wave}: {str(e)}")
+
+    def _generate_excel_report(self, csv_file, filename_errors_csv):
+        """Generate Excel report from the error CSV file."""
         excel_file_name = os.path.basename(filename_errors_csv)
         excel_file_name = excel_file_name.split("_3.0_")[0] + ".xlsx"
         parent_of_parent = os.path.dirname(os.path.dirname(filename_errors_csv))
         excel_file = os.path.join(parent_of_parent, excel_file_name)
         subtitle_csv.csv2excel(filename_errors_csv, excel_file)
-        print(f"All audio segments generated and saved in {output_folder}")
+        return excel_file
+
+    def _process_row(self, row, i, output_folder, speakers, default_speaker, rewrite, writer):
+        """Process a single row from the CSV file."""
+        file_wave = os.path.join(output_folder, f"segment_{i + 1}.wav")
+        if not rewrite and os.path.exists(file_wave):
+            print(f"Skipping existing file: {file_wave}")
+            return None
+            
+        duration = float(row.get('Duration', 0))
+        gen_text = row.get('Text', '').strip()
+        if not gen_text:
+            print(f"Skipping empty text at row {i+1}")
+            return None
+            
+        previous_speed = float(row.get('TTS Speed Closest', 1.0))
+        ref_text, ref_file = self._get_speaker_config(row, speakers, default_speaker)
+
+        # Generate audio
+        wav, sr, error = self._generate_audio_segment(
+            gen_text, duration, ref_text, ref_file, previous_speed, i
+        )
+        
+        if error:
+            print(f"Error processing row {i+1}: {error}")
+            writer.writerow({
+                **row,
+                "similarity": "0.00",
+                "gen_error": "1",
+                "whisper_text": "",
+                "subtitle_text": f"Error: {error}"
+            })
+            return None
+
+        print(f"Generated WAV-{i+1} with duration {len(wav)/sr:.2f}s")
+        
+        # Verify the generated audio
+        is_equal, gen_text_clean, subtitles_text, similarity = self.is_generated_text_equal_to_subtitles_text(
+            wav, sr, gen_text
+        )
+        
+        # Write results
+        writer.writerow({
+            **row,
+            "similarity": f"{similarity:.2f}",
+            "gen_error": "1" if not is_equal else "0",
+            "whisper_text": gen_text_clean,
+            "subtitle_text": subtitles_text
+        })
+        
+        return wav, file_wave, sr
+
+    def generate_from_csv_with_speakers(self, csv_file, output_folder, speakers, default_speaker, rewrite=False):
+        """
+        Generate audio segments from a CSV file with speaker configurations.
+        
+        Args:
+            csv_file: Path to input CSV file
+            output_folder: Directory to save generated audio files
+            speakers: Dictionary mapping speaker names to their configurations
+            default_speaker: Default speaker configuration to use when speaker not found
+            rewrite: If True, overwrite existing files
+        """
+        os.makedirs(output_folder, exist_ok=True)
+        filename_errors_csv = f"{str(csv_file)[:-4]}_errors.csv"
+        
+        # Read and validate input
+        try:
+            with open(csv_file, 'r', encoding='utf-8') as csvfile:
+                rows = list(csv.DictReader(csvfile))
+        except Exception as e:
+            print(f"Error reading CSV file: {str(e)}")
+            return
+            
+        if not rows:
+            print("No rows found in CSV file")
+            return
+        
+        generated_segments = []
+        
+        # Process each row and write results to CSV
+        with open(filename_errors_csv, 'w', newline='', encoding='utf-8') as csv_writer:
+            fieldnames = rows[0].keys() if rows else []
+            writer_filednames = [*fieldnames, "similarity", "gen_error", "whisper_text", "subtitle_text"]
+            writer = csv.DictWriter(csv_writer, fieldnames=writer_filednames, delimiter=';')
+            writer.writeheader()
+            
+            for i, row in enumerate(rows):
+                result = self._process_row(
+                    row, i, output_folder, speakers, default_speaker, rewrite, writer
+                )
+                if result:
+                    generated_segments.append(result)
+        
+        # Save all audio segments
+        self._save_audio_segments(generated_segments)
+        
+        # Generate Excel report
+        try:
+            excel_file = self._generate_excel_report(csv_file, filename_errors_csv)
+            print(f"Excel report generated: {excel_file}")
+        except Exception as e:
+            print(f"Error generating Excel report: {str(e)}")
+        
+        print(f"Processing complete. Generated {len(generated_segments)} audio segments in {output_folder}")
+        return filename_errors_csv
 
 
 

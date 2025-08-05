@@ -1,79 +1,132 @@
 # srt2audiotrack
 
-`srt2audiotrack` converts videos with subtitle files into new videos with an automatically generated English audio track. The pipeline uses **F5‑TTS** for text‑to‑speech generation and FFmpeg for audio mixing.
+`srt2audiotrack` is a powerful tool that automatically generates English voiceovers for videos using subtitle files. It combines advanced text-to-speech synthesis with professional audio processing to create natural-sounding voice tracks while preserving the original background music and sound effects.
+
+## Key Features
+- 🎤 High-quality TTS voice generation using F5-TTS
+- 🎵 Intelligent audio processing with Demucs for music/speech separation
+- 🎚️ Precise volume adjustment and mixing
+- 🎬 Preserves original video quality
+- 🚀 Batch processing support
+- 🐍 Easy-to-use Python API
 
 ## Installation
 
-### 1. Create an environment (Windows example)
+### 1. Create and activate a conda environment
 ```bash
-conda create -n f5-tts-demucs python=3.10
-conda activate f5-tts-demucs
+conda create -n srt2audio python=3.10
+conda activate srt2audio
 ```
 
-### 2. Install dependencies
-- Install [F5‑TTS](https://github.com/SWivid/F5-TTS):
-  ```bash
-  pip install f5-tts
-  ```
-- Install [Demucs](https://github.com/adefossez/demucs) for accompaniment extraction:
-  ```bash
-  python -m pip install -U demucs
-  ```
-- Install other Python requirements:
-  ```bash
-  pip install -r requirements.txt
-  ```
+### 2. Install core dependencies
+```bash
+pip install f5-tts demucs librosa soundfile numpy ffmpeg-python
+```
+
+### 3. Install additional requirements
+```bash
+pip install -r requirements.txt
+```
 
 ## Usage
-Run the application as a module by providing a folder that contains videos and matching `.srt` subtitle files:
+
+### Command Line Interface
+Process all videos in a folder with matching subtitle files:
 ```bash
-python -m srt2audiotrack --subtitle records\one_voice
+python -m srt2audiotrack --subtitle path/to/videos --output_folder results
 ```
-The processed videos will be saved in the folder specified by `--output_folder`
-(or next to the subtitles if not provided) with the suffix `_out_mix.mp4`.
 
-### Command line options
-- `--subtitle` – path to a folder or a single subtitle file.
-- `--videoext` – extension of the video files (default: `.mp4`).
-- `--srtext` – extension of subtitle files (default: `.srt`).
-- `--acomponiment_coef` – mix coefficient for the original audio (default: `0.3`).
-- `--voice_coef` – proportion of generated voice in the final mix (default: `0.2`).
-- `--output_folder` – directory where all intermediate and result files will be stored.
+Process a single video with its subtitle:
+```bash
+python -m srt2audiotrack --subtitle video.srt --output_folder results
+```
 
-Run `python -m srt2audiotrack -h` to see all available options.
+### Command Line Options
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--subtitle` | Path to folder or subtitle file | Required |
+| `--videoext` | Video file extension | `.mp4` |
+| `--srtext` | Subtitle file extension | `.srt` |
+| `--acomponiment_coef` | Original audio mix level | `0.3` |
+| `--voice_coef` | TTS voice volume level | `0.2` |
+| `--output_folder` | Output directory | Same as input |
 
-## Pipeline Overview
+## How It Works
+
+### Processing Pipeline
 
 ```
-Input Files:
-  video.mp4
-  subtitles.srt
-
-  ┌─────────────────┐     ┌─────────────────┐     ┌──────────────────────┐
-  │ 1. Extract      │     │ 2. Generate     │     │ 3. Process           │
-  │    Audio        │────▶│    TTS Audio    │────▶│    Audio Mix        │
-  └─────────────────┘     └─────────────────┘     │   ┌──────────────┐   │
-                                                  │   │  Original    │   │
-  ┌─────────────────┐     ┌─────────────────┐     │   │  Video       │   │
-  │ 4. Separate     │     │ 5. Adjust       │     │   └──────┬───────┘   │
-  │    Vocals       │────▶│    Volume       │────▶│           │           │
-  └─────────────────┘     └─────────────────┘     │   ┌──────▼───────┐   │
-                                                  │   │  TTS Voice   │   │
-  ┌─────────────────┐     ┌─────────────────┐     │   │              │   │
-  │ 6. Extract      │     │ 7. Mix          │     │   └──────┬───────┘   │
-  │    Accompaniment│────▶│    Audio        │────▶│           │           │
-  └─────────────────┘     └─────────────────┘     │   ┌──────▼───────┐   │
-                                                  │   │  Accompaniment│   │
-                                                  │   │  (Music/SFX)  │   │
-                                                  │   └──────┬───────┘   │
-                                                  │          │           │
-                                                  └──────────┼───────────┘
-                                                           │
-                                                      ┌─────▼────┐
-                                                      │  Output  │
-                                                      │  Video   │
-                                                      └──────────┘
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                                Input Files                                    │
+│  ┌─────────────┐                    ┌────────────────┐                       │
+│  │  video.mp4  │                    │  subtitle.srt  │                       │
+│  └──────┬──────┘                    └───────┬────────┘                       │
+│         │                                    │                                │
+└─────────┼────────────────────────────────────┼────────────────────────────────┘
+          │                                    │
+          ▼                                    ▼
+┌─────────────────────┐            ┌───────────────────────┐
+│  1. Audio Extraction│            │ 2. Subtitle Processing│
+│  • Extract audio    │            │  • Parse timestamps   │
+│  • Normalize levels │            │  • Clean text         │
+└─────────┬───────────┘            └──────────┬────────────┘
+          │                                    │
+          │                                    ▼
+          │                         ┌───────────────────────┐
+          │                         │ 3. Voice Generation  │
+          │                         │  • TTS processing    │
+          │                         │  • Apply timing      │
+          │                         └──────────┬────────────┘
+          │                                    │
+          ▼                                    │
+┌─────────────────────┐                        │
+│ 4. Audio Processing │                        │
+│  • Separate vocals  │◄──────────────────────┘
+│  • Extract music    │
+│  • Adjust levels    │
+└─────────┬───────────┘
+          │
+          ▼
+┌─────────────────────┐
+│ 5. Final Mix        │
+│  • Combine tracks   │
+│  • Normalize output │
+└─────────┬───────────┘
+          │
+          ▼
+┌─────────────────────┐
+│ 6. Video Output     │
+│  • Mux with video   │
+│  • Apply metadata   │
+└─────────┬───────────┘
+          │
+          ▼
+   ┌─────────────┐
+   │  Output     │
+   │  video.mp4  │
+   └─────────────┘
 ```
+
+### Audio Processing Details
+1. **Input Handling**
+   - Video and subtitle files are matched by name
+   - Audio is extracted and normalized
+   - Subtitles are parsed and cleaned
+
+2. **Voice Generation**
+   - Text is processed through F5-TTS
+   - Voice clips are generated with precise timing
+   - Natural pauses and intonation are preserved
+
+3. **Audio Mixing**
+   - Original audio is split into vocals and accompaniment
+   - Voice tracks are mixed with background music
+   - Volume levels are balanced automatically
+
+4. **Output**
+   - Final audio is mixed with original video
+   - Metadata is preserved
+   - Output is saved in the specified format
 
 ### Using as a module
 The library exposes a functional API that can be used directly in web

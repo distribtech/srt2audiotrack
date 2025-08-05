@@ -163,9 +163,8 @@ def adjust_stereo_volume_with_librosa(
 
     # Convert time to sample index
     for start_time, end_time in volume_intervals:
-        start_time, end_time = time_to_seconds(start_time), time_to_seconds(end_time)
-        start_sample = int(librosa.time_to_samples(float(start_time), sr=sr))
-        end_sample = int(librosa.time_to_samples(float(end_time), sr=sr))
+        start_sample = time2sample(start_time, sr)
+        end_sample = time2sample(end_time, sr)
 
         # Apply volume adjustment in the given range for both channels
         y[:, start_sample:end_sample] = \
@@ -177,3 +176,7 @@ def adjust_stereo_volume_with_librosa(
     sf.write(output_audio, y.T, sr)  # Transpose y to match the expected shape for stereo
 
     print(f"Stereo volume adjusted and saved to {output_audio}")
+
+def time2sample(time, sr):
+    seconds = time_to_seconds(time) 
+    return int(librosa.time_to_samples(float(seconds), sr=sr))
