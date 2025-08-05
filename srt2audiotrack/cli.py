@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 from .subtitle_csv import get_speakers_from_folder, check_texts, check_speeds_csv
 from .vocabulary import check_vocabular
-from .pipeline import SubtitlePipeline
+from .pipeline import list_subtitle_files, run_pipeline
 
 
 def main():
@@ -70,7 +70,7 @@ def main():
         exit(1)
     default_speaker = speakers.get(speakers["default_speaker_name"])
 
-    sbt_files = SubtitlePipeline.list_subtitle_files(
+    sbt_files = list_subtitle_files(
         subtitle, srtext, exclude_ext="_0_mod.srt"
     )
     # we need exclude srt modified files that we used for right pronunciation
@@ -82,16 +82,16 @@ def main():
         ready_video_file_name = subtitle.stem + "_out_mix.mp4"
         ready_video_path = video_path.parent / ready_video_file_name
         if video_path.is_file() and not ready_video_path.is_file():
-            pipeline = SubtitlePipeline(
+            run_pipeline(
+                video_path,
                 subtitle,
-                vocabular_pth,
                 speakers,
                 default_speaker,
+                vocabular_pth,
                 acomponiment_coef,
                 voice_coef,
                 output_folder,
             )
-            pipeline.run(video_path)
 
 
 

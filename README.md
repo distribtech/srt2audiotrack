@@ -76,13 +76,14 @@ Input Files:
 ```
 
 ### Using as a module
-`SubtitlePipeline` can be imported directly and used in web applications. Only a few paths and speaker settings are required:
+The library exposes a functional API that can be used directly in web
+applications. Only a few paths and speaker settings are required:
 
 ```python
 from pathlib import Path
-from srt2audiotrack import SubtitlePipeline
+from srt2audiotrack import create_video_with_english_audio
 
-SubtitlePipeline.create_video_with_english_audio(
+create_video_with_english_audio(
     "video.mp4",
     Path("subtitles.srt"),
     speakers,
