@@ -54,10 +54,13 @@ class F5TTS:
     def load_ema_model(self, model_type, ckpt_file, mel_spec_type, vocab_file, ode_method, use_ema):
         # Use correct model name
         model = "F5TTS_v1_Base"
+        print(f"Loading model: {model}")
         
         # Load model configuration
+        path_to_config = str(files("f5_tts").joinpath(f"configs/{model}.yaml"))
+        print(f"Loading model configuration from {path_to_config}") 
         model_cfg = OmegaConf.load(
-            str(files("f5_tts").joinpath(f"configs/{model}.yaml"))
+            path_to_config            
         )
         model_cls = get_class(f"f5_tts.model.{model_cfg.model.backbone}")
         model_arc = model_cfg.model.arch
@@ -66,8 +69,10 @@ class F5TTS:
         if not ckpt_file:
             if mel_spec_type == "vocos":
                 ckpt_file = str(cached_path("hf://SWivid/F5-TTS/F5TTS_v1_Base/model_1250000.safetensors"))
+                print(f"Loading checkpoint from {ckpt_file} for vocos")
             elif mel_spec_type == "bigvgan":
                 ckpt_file = str(cached_path("hf://SWivid/F5-TTS/F5TTS_Base_bigvgan/model_1250000.pt"))
+                print(f"Loading checkpoint from {ckpt_file} for bigvgan")
         
         # Load the model with correct parameters
         self.ema_model = load_model(
@@ -81,11 +86,14 @@ class F5TTS:
         if model_type == "F5-TTS":
             model_cfg = dict(dim=1024, depth=22, heads=16, ff_mult=2, text_dim=512, conv_layers=4)
             model_cls = DiT
+            print(f"Loading model {model_type} with config {model_cfg}")
         elif model_type == "E2-TTS":
             if not ckpt_file:
                 ckpt_file = str(cached_path("hf://SWivid/E2-TTS/E2TTS_Base/model_1200000.safetensors"))
+                print(f"Loading checkpoint from {ckpt_file} for E2-TTS")
             model_cfg = dict(dim=1024, depth=24, heads=16, ff_mult=4)
             model_cls = UNetT
+            print(f"Loading model {model_type} with config {model_cfg}")
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
