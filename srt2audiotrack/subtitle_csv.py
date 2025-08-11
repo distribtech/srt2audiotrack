@@ -201,7 +201,7 @@ def check_texts(voice_dir):
             exit(1)
     print("All text files are OK!")
 
-def check_speeds_csv(voice_dir):
+def check_speeds_csv(voice_dir, language="en"):
     for sound_file in Path(voice_dir).glob("*.wav"):
         text_file_path = sound_file.with_suffix(".txt")
         with open(text_file_path) as text_file:
@@ -209,7 +209,7 @@ def check_speeds_csv(voice_dir):
 
         speeds_file = Path(voice_dir) / Path(sound_file).stem / "speeds.csv"
         if not speeds_file.is_file():
-            tts_audio.F5TTS().generate_speeds_csv(speeds_file, text, sound_file)
+            tts_audio.F5TTS(language=language).generate_speeds_csv(speeds_file, text, sound_file)
     print("All speeds.csv are OK!")
 
 def take_first(dct):

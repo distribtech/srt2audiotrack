@@ -59,7 +59,7 @@ def subtitles_to_audio(
     out_path: Path,
     speakers: dict,
     default_speaker: dict,
-    tts_language: str = "en",
+    tts_language,
 ) -> tuple[Path, Path]:
     """Convert prepared subtitles to audio files.
 
@@ -174,8 +174,8 @@ def run_pipeline(
     vocabular: Path | str,
     acomponiment_coef: float,
     voice_coef: float,
-    output_folder: Path | str = "",
-    tts_language: str = "en",
+    tts_language: str,
+    output_folder: Path | str = ""    
 ) -> None:
     """Run the complete processing pipeline for a single video."""
 

@@ -39,7 +39,7 @@ def main():
     # Add output folder
     parser.add_argument('--output_folder', type=str, help="Output folder", default="")
     # Add tts language
-    parser.add_argument('--tts_language', type=str, help="Language for F5-TTS", default="en")
+    parser.add_argument('--tts_language', type=str, help="Language for F5-TTS", default="es")
 
     # Parse the arguments
     args = parser.parse_args()
@@ -58,6 +58,8 @@ def main():
     voice_coef = args.voice_coef
     output_folder = args.output_folder #It must be done in future. Now output file in the same directory than input file
     tts_language = args.tts_language
+    
+    print(f"Processing language code: {tts_language}")
 
     print(f"Processing folder: {subtitle}")
 
@@ -65,7 +67,7 @@ def main():
 
     vocabular_pth = check_vocabular(voice_dir)
     check_texts(voice_dir)
-    check_speeds_csv(voice_dir)
+    check_speeds_csv(voice_dir, language=tts_language)
 
     speakers = get_speakers_from_folder(voice_dir)
     if not speakers:
@@ -92,9 +94,9 @@ def main():
                 default_speaker,
                 vocabular_pth,
                 acomponiment_coef,
-                voice_coef,
-                output_folder,
+                voice_coef,               
                 tts_language,
+                output_folder
             )
 
 

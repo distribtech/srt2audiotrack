@@ -36,14 +36,16 @@ class F5TTS:
         "en": {
             "ckpt_file": "hf://SWivid/F5-TTS/F5TTS_v1_Base/model_1250000.safetensors",
             "vocab_file": "",
+            "gen_text_speeds_csv": "Some call me nature, others call me mother nature. Let's try some long text. We are just trying to get more fidelity. It's OK!"
         },
         "es": {
             "ckpt_file": "hf://jpgallegoar/F5-Spanish/F5TTS_v1_Base/model_1200000.safetensors",
             "vocab_file": "",
+            "gen_text_speeds_csv": "Algunos me llaman naturaleza, otros me llaman madre naturaleza. Probemos con un texto más largo. Solo estamos intentando conseguir más fidelidad. ¡No pasa nada!"
         },
     }
 
-    def __init__(self, model_type="F5-TTS", language="en", ckpt_file="", vocab_file="", ode_method="euler",
+    def __init__(self, model_type="F5-TTS", language=None, ckpt_file="", vocab_file="", ode_method="euler",
                  use_ema=True, vocoder_name="vocos", local_path=None, device=None):
         self.final_wave = None
         self.target_sample_rate = target_sample_rate
@@ -430,7 +432,13 @@ class F5TTS:
 
 
     def generate_speeds_csv(self, output_csv, ref_text, ref_file):
-        gen_text = "Some call me nature, others call me mother nature. Let's try some long text. We are just trying to get more fidelity. It's OK!"
+        gen_text = self.DEFAULT_MODELS[self.language]["gen_text_speeds_csv"]
+        print(f"Generating speeds CSV for language: {self.language}")
+        print(f"gen text: {gen_text}")
+        print(f"Reference text: {ref_text}")
+        print(f"Reference file: {ref_file}")
+        input("Press Enter to continue...")
+        
         speeds = [0.3,0.4,0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5]
         rows = []
         Path(output_csv).parent.mkdir(parents=True, exist_ok=True)
