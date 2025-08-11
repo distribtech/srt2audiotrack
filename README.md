@@ -1,9 +1,10 @@
 # srt2audiotrack
 
-`srt2audiotrack` is a powerful tool that automatically generates English voiceovers for videos using subtitle files. It combines advanced text-to-speech synthesis with professional audio processing to create natural-sounding voice tracks while preserving the original background music and sound effects.
+`srt2audiotrack` is a powerful tool that automatically generates voiceovers for videos using subtitle files. It combines advanced text-to-speech synthesis with professional audio processing to create natural-sounding voice tracks while preserving the original background music and sound effects.
 
 ## Key Features
 - 🎤 High-quality TTS voice generation using F5-TTS
+- 🌍 Multi-language support (English and Spanish via `jpgallegoar/F5-Spanish`)
 - 🎵 Intelligent audio processing with Demucs for music/speech separation
 - 🎚️ Precise volume adjustment and mixing
 - 🎬 Preserves original video quality
@@ -41,6 +42,11 @@ Process a single video with its subtitle:
 python -m srt2audiotrack --subtitle video.srt --output_folder results
 ```
 
+Generate Spanish audio using the community Spanish model:
+```bash
+python -m srt2audiotrack --subtitle video.srt --output_folder results --tts_language es
+```
+
 ### Command Line Options
 | Option | Description | Default |
 |--------|-------------|---------|
@@ -50,6 +56,7 @@ python -m srt2audiotrack --subtitle video.srt --output_folder results
 | `--acomponiment_coef` | Original audio mix level | `0.3` |
 | `--voice_coef` | TTS voice volume level | `0.2` |
 | `--output_folder` | Output directory | Same as input |
+| `--tts_language` | Language for F5-TTS model (`en` or `es`) | `en` |
 
 ## How It Works
 

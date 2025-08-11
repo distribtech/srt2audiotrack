@@ -59,6 +59,7 @@ def subtitles_to_audio(
     out_path: Path,
     speakers: dict,
     default_speaker: dict,
+    tts_language: str = "en",
 ) -> tuple[Path, Path]:
     """Convert prepared subtitles to audio files.
 
@@ -90,7 +91,7 @@ def subtitles_to_audio(
     if not tts_audio.F5TTS.all_segments_in_folder_check(
         output_with_preview_speeds_csv, directory
     ):
-        tts_audio.F5TTS().generate_from_csv_with_speakers(
+        tts_audio.F5TTS(language=tts_language).generate_from_csv_with_speakers(
             output_with_preview_speeds_csv,
             directory,
             speakers,
@@ -174,6 +175,7 @@ def run_pipeline(
     acomponiment_coef: float,
     voice_coef: float,
     output_folder: Path | str = "",
+    tts_language: str = "en",
 ) -> None:
     """Run the complete processing pipeline for a single video."""
 
@@ -181,7 +183,7 @@ def run_pipeline(
         subtitle, vocabular, output_folder
     )
     srt_csv_file, stereo_eng_file = subtitles_to_audio(
-        directory, subtitle_name, out_path, speakers, default_speaker
+        directory, subtitle_name, out_path, speakers, default_speaker, tts_language
     )
     process_video_file(
         video_path,
@@ -214,6 +216,7 @@ def create_video_with_english_audio(
     acomponiment_coef: float,
     voice_coef: float,
     output_folder: Path,
+    tts_language: str = "en",
 ) -> None:
     """Convenience wrapper used by ``main.py`` for processing a single video."""
 
@@ -226,5 +229,6 @@ def create_video_with_english_audio(
         acomponiment_coef,
         voice_coef,
         output_folder,
+        tts_language,
     )
 

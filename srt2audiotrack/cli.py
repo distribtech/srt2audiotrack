@@ -38,6 +38,8 @@ def main():
     parser.add_argument('--voice_coef', type=float, help="Voice coeficient", default=0.2)
     # Add output folder
     parser.add_argument('--output_folder', type=str, help="Output folder", default="")
+    # Add tts language
+    parser.add_argument('--tts_language', type=str, help="Language for F5-TTS", default="en")
 
     # Parse the arguments
     args = parser.parse_args()
@@ -55,6 +57,7 @@ def main():
     acomponiment_coef = args.acomponiment_coef
     voice_coef = args.voice_coef
     output_folder = args.output_folder #It must be done in future. Now output file in the same directory than input file
+    tts_language = args.tts_language
 
     print(f"Processing folder: {subtitle}")
 
@@ -91,6 +94,7 @@ def main():
                 acomponiment_coef,
                 voice_coef,
                 output_folder,
+                tts_language,
             )
 
 

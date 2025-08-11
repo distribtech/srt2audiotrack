@@ -56,7 +56,7 @@ def test_create_video_with_english_audio_passes_output_folder(tmp_path, monkeypa
 
     calls = {}
 
-    def fake_subtitles_to_audio(directory, subtitle_name, out_path, speakers_arg, default_speaker_arg):
+    def fake_subtitles_to_audio(directory, subtitle_name, out_path, speakers_arg, default_speaker_arg, tts_language="en"):
         calls["subdir"] = directory
         return Path("dummy.csv"), Path("dummy.wav")
 
@@ -100,7 +100,7 @@ def test_run_pipeline_uses_output_folder(tmp_path, monkeypatch):
         directory = calls["prep"]
         return directory, Path(subtitle_arg).stem, Path("dummy.srt")
 
-    def fake_subtitles_to_audio(directory, subtitle_name, out_path, speakers_arg, default_speaker_arg):
+    def fake_subtitles_to_audio(directory, subtitle_name, out_path, speakers_arg, default_speaker_arg, tts_language="en"):
         calls["audio"] = directory
         return Path("dummy.csv"), Path("dummy.wav")
 
