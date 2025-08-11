@@ -201,7 +201,7 @@ def check_texts(voice_dir):
             exit(1)
     print("All text files are OK!")
 
-def check_speeds_csv(voice_dir, language="en"):
+def check_speeds_csv(voice_dir, language):
     for sound_file in Path(voice_dir).glob("*.wav"):
         text_file_path = sound_file.with_suffix(".txt")
         with open(text_file_path) as text_file:
