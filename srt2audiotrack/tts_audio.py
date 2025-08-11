@@ -32,17 +32,39 @@ from f5_tts.model.utils import seed_everything
 
 
 class F5TTS:
-    def __init__(self, model_type="F5-TTS", ckpt_file="", vocab_file="", ode_method="euler",
+    DEFAULT_MODELS = {
+        "en": {
+            "ckpt_file": "hf://SWivid/F5-TTS/F5TTS_v1_Base/model_1250000.safetensors",
+            "vocab_file": "",
+        },
+        "es": {
+            "ckpt_file": "hf://jpgallegoar/F5-Spanish/F5TTS_v1_Base/model_1200000.safetensors",
+            "vocab_file": "",
+        },
+    }
+
+    def __init__(self, model_type="F5-TTS", language="en", ckpt_file="", vocab_file="", ode_method="euler",
                  use_ema=True, vocoder_name="vocos", local_path=None, device=None):
         self.final_wave = None
         self.target_sample_rate = target_sample_rate
         self.hop_length = hop_length
         self.seed = -1
         self.mel_spec_type = vocoder_name
+        self.language = language.lower()
         self.device = device or (
             "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
         )
         print(f"device = {self.device}")
+
+        if not ckpt_file or not vocab_file:
+            model_info = self.DEFAULT_MODELS.get(self.language, {})
+            ckpt_file = ckpt_file or model_info.get("ckpt_file", "")
+            vocab_file = vocab_file or model_info.get("vocab_file", "")
+
+        if ckpt_file.startswith("hf://"):
+            ckpt_file = str(cached_path(ckpt_file))
+        if vocab_file and vocab_file.startswith("hf://"):
+            vocab_file = str(cached_path(vocab_file))
 
         self.load_vocoder_model(vocoder_name, local_path)
         self.load_ema_model(model_type, ckpt_file, vocoder_name, vocab_file, ode_method, use_ema)
@@ -68,8 +90,10 @@ class F5TTS:
         # Set correct checkpoint path
         if not ckpt_file:
             if mel_spec_type == "vocos":
-                ckpt_file = str(cached_path("hf://SWivid/F5-TTS/F5TTS_v1_Base/model_1250000.safetensors"))
-                print(f"Loading checkpoint from {ckpt_file} for vocos")
+                model_info = self.DEFAULT_MODELS.get(self.language, {})
+                default = model_info.get("ckpt_file")
+                if default:
+                    ckpt_file = str(cached_path(default))
             elif mel_spec_type == "bigvgan":
                 ckpt_file = str(cached_path("hf://SWivid/F5-TTS/F5TTS_Base_bigvgan/model_1250000.pt"))
                 print(f"Loading checkpoint from {ckpt_file} for bigvgan")
