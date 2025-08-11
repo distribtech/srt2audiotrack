@@ -39,7 +39,7 @@ def main():
     # Add output folder
     parser.add_argument('--output_folder', type=str, help="Output folder", default="")
     # Add tts language
-    parser.add_argument('--tts_language', type=str, help="Language for F5-TTS", default="en")
+    parser.add_argument('--tts_language', type=str, help="Language for F5-TTS", default="es")
 
     # Parse the arguments
     args = parser.parse_args()

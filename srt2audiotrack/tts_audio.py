@@ -39,7 +39,7 @@ class F5TTS:
             "gen_text_speeds_csv": "Some call me nature, others call me mother nature. Let's try some long text. We are just trying to get more fidelity. It's OK!"
         },
         "es": {
-            "ckpt_file": "hf://jpgallegoar/F5-Spanish/F5TTS_v1_Base/model_1200000.safetensors",
+            "ckpt_file": "hf://SWivid/F5-TTS/F5TTS_v1_Base/model_1250000.safetensors",
             "vocab_file": "",
             "gen_text_speeds_csv": "Algunos me llaman naturaleza, otros me llaman madre naturaleza. Probemos con un texto más largo. Solo estamos intentando conseguir más fidelidad. ¡No pasa nada!"
         },
@@ -71,6 +71,7 @@ class F5TTS:
         self.load_vocoder_model(vocoder_name, local_path)
         self.load_ema_model(model_type, ckpt_file, vocoder_name, vocab_file, ode_method, use_ema)
         self.stt_model = stt.create_model()
+        # input("Press Enter when ready...")
 
     def load_vocoder_model(self, vocoder_name, local_path):
         self.vocoder = load_vocoder(vocoder_name, local_path is not None, local_path, self.device)
@@ -275,7 +276,7 @@ class F5TTS:
 
 
     def is_generated_text_equal_to_subtitles_text(self,wav,sr,subtitles_text):
-        gen_text = stt.wav2txt(self.stt_model, wav, sr)
+        gen_text = stt.wav2txt(self.stt_model, wav, sr,language=self.language)
         gen_text = self.clean_text(gen_text)
         subtitles_text = self.clean_text(subtitles_text)
         similarity = self.similarity(gen_text,subtitles_text)

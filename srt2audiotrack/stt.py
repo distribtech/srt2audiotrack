@@ -17,7 +17,7 @@ def create_model_whisper(name="large-v3"):
 def create_model(name="large-v3",whisperx=False):
     return create_model_whisper(name)
 
-def wav2txt(model, wav, sr, language="en"):
+def wav2txt(model, wav, sr, language):
     return model.transcribe(wav, language=language)["text"]
 
 # def wav2txt(model, wav, sr, language="en"):
