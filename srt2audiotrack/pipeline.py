@@ -91,6 +91,7 @@ def subtitles_to_audio(
     if not tts_audio.F5TTS.all_segments_in_folder_check(
         output_with_preview_speeds_csv, directory
     ):
+        print(f"Generating audio. Language: {tts_language}")
         tts_audio.F5TTS(language=tts_language).generate_from_csv_with_speakers(
             output_with_preview_speeds_csv,
             directory,
