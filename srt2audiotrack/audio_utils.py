@@ -4,9 +4,10 @@ import soundfile as sf
 import numpy as np
 from .sync_utils import time_to_seconds
 import librosa
-import demucs.separate
 import shutil
 import librosa
+
+from .docker_models import run_demucs
 
 
 def extract_acomponiment_or_vocals(directory, subtitle_name, out_ukr_wav,
@@ -21,7 +22,7 @@ def extract_acomponiment_or_vocals(directory, subtitle_name, out_ukr_wav,
     demucs_folder = model_folder / out_ukr_wav.stem
     acomponiment_temp = demucs_folder / sound_name
     acomponiment_temp_stereo = directory / f"{subtitle_name}{pipeline_suffix}_stereo.wav"
-    demucs.separate.main(["--jobs", "4","-o", str(directory), "--two-stems", "vocals", "-n", model_demucs, str(out_ukr_wav)])
+    run_demucs(out_ukr_wav, directory, model=model_demucs)
     
     if acomponiment_temp.exists():
             # Load and normalize the audio

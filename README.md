@@ -29,6 +29,33 @@ pip install f5-tts demucs librosa soundfile numpy ffmpeg-python
 pip install -r requirements.txt
 ```
 
+## Docker Setup
+
+The heavy models used by this project—Whisper, Demucs and F5-TTS—are
+executed inside Docker containers.  Install Docker before running the
+pipeline.
+
+### Windows
+1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+2. Enable the WSL2 backend during installation.
+3. After installation open *PowerShell* and verify:
+   ```powershell
+   docker version
+   ```
+
+### Linux
+1. Install the Docker Engine:
+   ```bash
+   sudo apt update
+   sudo apt install -y docker.io
+   sudo systemctl enable --now docker
+   ```
+2. Allow your user to run Docker without `sudo`:
+   ```bash
+   sudo usermod -aG docker $USER
+   ```
+3. Log out and back in, then verify with `docker version`.
+
 ## Usage
 
 ### Command Line Interface
