@@ -175,8 +175,8 @@ def run_pipeline(
     vocabular: Path | str,
     acomponiment_coef: float,
     voice_coef: float,
-    tts_language: str,
-    output_folder: Path | str = ""    
+    output_folder: Path | str = "",
+    tts_language: str = "en",
 ) -> None:
     """Run the complete processing pipeline for a single video."""
 
