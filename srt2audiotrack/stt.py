@@ -18,6 +18,11 @@ def create_model(name="large-v3",whisperx=False):
     return create_model_whisper(name)
 
 def wav2txt(model, wav, sr, language):
+    # Ensure the audio is in the correct format (float32) for Whisper
+    if isinstance(wav, torch.Tensor):
+        wav = wav.numpy()
+    if wav.dtype != np.float32:
+        wav = wav.astype(np.float32)
     return model.transcribe(wav, language=language)["text"]
 
 # def wav2txt(model, wav, sr, language="en"):
