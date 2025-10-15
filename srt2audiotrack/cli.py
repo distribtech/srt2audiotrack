@@ -94,9 +94,9 @@ def main():
                 default_speaker,
                 vocabular_pth,
                 acomponiment_coef,
-                voice_coef,               
+                voice_coef,
+                output_folder,
                 tts_language,
-                output_folder
             )
 
 
