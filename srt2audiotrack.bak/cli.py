@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 from .subtitle_csv import get_speakers_from_folder, check_texts, check_speeds_csv
 from .vocabulary import check_vocabular
-from .pipeline import SubtitlePipeline
+from .pipeline import list_subtitle_files, run_pipeline
 
 
 def main():
@@ -38,6 +38,8 @@ def main():
     parser.add_argument('--voice_coef', type=float, help="Voice coeficient", default=0.2)
     # Add output folder
     parser.add_argument('--output_folder', type=str, help="Output folder", default="")
+    # Add tts language
+    parser.add_argument('--tts_language', type=str, help="Language for F5-TTS", default="en")
 
     # Parse the arguments
     args = parser.parse_args()
@@ -55,6 +57,9 @@ def main():
     acomponiment_coef = args.acomponiment_coef
     voice_coef = args.voice_coef
     output_folder = args.output_folder #It must be done in future. Now output file in the same directory than input file
+    tts_language = args.tts_language
+    
+    print(f"Processing language code: {tts_language}")
 
     print(f"Processing folder: {subtitle}")
 
@@ -62,7 +67,7 @@ def main():
 
     vocabular_pth = check_vocabular(voice_dir)
     check_texts(voice_dir)
-    check_speeds_csv(voice_dir)
+    check_speeds_csv(voice_dir, language=tts_language)
 
     speakers = get_speakers_from_folder(voice_dir)
     if not speakers:
@@ -70,7 +75,7 @@ def main():
         exit(1)
     default_speaker = speakers.get(speakers["default_speaker_name"])
 
-    sbt_files = SubtitlePipeline.list_subtitle_files(
+    sbt_files = list_subtitle_files(
         subtitle, srtext, exclude_ext="_0_mod.srt"
     )
     # we need exclude srt modified files that we used for right pronunciation
@@ -82,16 +87,17 @@ def main():
         ready_video_file_name = subtitle.stem + "_out_mix.mp4"
         ready_video_path = video_path.parent / ready_video_file_name
         if video_path.is_file() and not ready_video_path.is_file():
-            pipeline = SubtitlePipeline(
+            run_pipeline(
+                video_path,
                 subtitle,
-                vocabular_pth,
                 speakers,
                 default_speaker,
+                vocabular_pth,
                 acomponiment_coef,
                 voice_coef,
                 output_folder,
+                tts_language,
             )
-            pipeline.run(video_path)
 
 
 

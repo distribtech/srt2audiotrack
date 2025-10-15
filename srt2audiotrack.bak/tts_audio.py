@@ -32,21 +32,46 @@ from f5_tts.model.utils import seed_everything
 
 
 class F5TTS:
-    def __init__(self, model_type="F5-TTS", ckpt_file="", vocab_file="", ode_method="euler",
+    DEFAULT_MODELS = {
+        "en": {
+            "ckpt_file": "hf://SWivid/F5-TTS/F5TTS_v1_Base/model_1250000.safetensors",
+            "vocab_file": "",
+            "gen_text_speeds_csv": "Some call me nature, others call me mother nature. Let's try some long text. We are just trying to get more fidelity. It's OK!"
+        },
+        "es": {
+            "ckpt_file": "hf://SWivid/F5-TTS/F5TTS_v1_Base/model_1250000.safetensors",
+            "vocab_file": "",
+            "gen_text_speeds_csv": "Algunos me llaman naturaleza, otros me llaman madre naturaleza. Probemos con un texto más largo. Solo estamos intentando conseguir más fidelidad. ¡No pasa nada!"
+        },
+    }
+
+    def __init__(self, model_type="F5-TTS", language=None, ckpt_file="", vocab_file="", ode_method="euler",
                  use_ema=True, vocoder_name="vocos", local_path=None, device=None):
         self.final_wave = None
         self.target_sample_rate = target_sample_rate
         self.hop_length = hop_length
         self.seed = -1
         self.mel_spec_type = vocoder_name
+        self.language = language.lower()
         self.device = device or (
             "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
         )
         print(f"device = {self.device}")
 
+        if not ckpt_file or not vocab_file:
+            model_info = self.DEFAULT_MODELS.get(self.language, {})
+            ckpt_file = ckpt_file or model_info.get("ckpt_file", "")
+            vocab_file = vocab_file or model_info.get("vocab_file", "")
+
+        if ckpt_file.startswith("hf://"):
+            ckpt_file = str(cached_path(ckpt_file))
+        if vocab_file and vocab_file.startswith("hf://"):
+            vocab_file = str(cached_path(vocab_file))
+
         self.load_vocoder_model(vocoder_name, local_path)
         self.load_ema_model(model_type, ckpt_file, vocoder_name, vocab_file, ode_method, use_ema)
         self.stt_model = stt.create_model()
+        # input("Press Enter when ready...")
 
     def load_vocoder_model(self, vocoder_name, local_path):
         self.vocoder = load_vocoder(vocoder_name, local_path is not None, local_path, self.device)
@@ -54,10 +79,13 @@ class F5TTS:
     def load_ema_model(self, model_type, ckpt_file, mel_spec_type, vocab_file, ode_method, use_ema):
         # Use correct model name
         model = "F5TTS_v1_Base"
+        print(f"Loading model: {model}")
         
         # Load model configuration
+        path_to_config = str(files("f5_tts").joinpath(f"configs/{model}.yaml"))
+        print(f"Loading model configuration from {path_to_config}") 
         model_cfg = OmegaConf.load(
-            str(files("f5_tts").joinpath(f"configs/{model}.yaml"))
+            path_to_config            
         )
         model_cls = get_class(f"f5_tts.model.{model_cfg.model.backbone}")
         model_arc = model_cfg.model.arch
@@ -65,9 +93,13 @@ class F5TTS:
         # Set correct checkpoint path
         if not ckpt_file:
             if mel_spec_type == "vocos":
-                ckpt_file = str(cached_path("hf://SWivid/F5-TTS/F5TTS_v1_Base/model_1250000.safetensors"))
+                model_info = self.DEFAULT_MODELS.get(self.language, {})
+                default = model_info.get("ckpt_file")
+                if default:
+                    ckpt_file = str(cached_path(default))
             elif mel_spec_type == "bigvgan":
                 ckpt_file = str(cached_path("hf://SWivid/F5-TTS/F5TTS_Base_bigvgan/model_1250000.pt"))
+                print(f"Loading checkpoint from {ckpt_file} for bigvgan")
         
         # Load the model with correct parameters
         self.ema_model = load_model(
@@ -81,11 +113,14 @@ class F5TTS:
         if model_type == "F5-TTS":
             model_cfg = dict(dim=1024, depth=22, heads=16, ff_mult=2, text_dim=512, conv_layers=4)
             model_cls = DiT
+            print(f"Loading model {model_type} with config {model_cfg}")
         elif model_type == "E2-TTS":
             if not ckpt_file:
                 ckpt_file = str(cached_path("hf://SWivid/E2-TTS/E2TTS_Base/model_1200000.safetensors"))
+                print(f"Loading checkpoint from {ckpt_file} for E2-TTS")
             model_cfg = dict(dim=1024, depth=24, heads=16, ff_mult=4)
             model_cls = UNetT
+            print(f"Loading model {model_type} with config {model_cfg}")
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
@@ -241,7 +276,7 @@ class F5TTS:
 
 
     def is_generated_text_equal_to_subtitles_text(self,wav,sr,subtitles_text):
-        gen_text = stt.wav2txt(self.stt_model, wav, sr)
+        gen_text = stt.wav2txt(self.stt_model, wav, sr,language=self.language)
         gen_text = self.clean_text(gen_text)
         subtitles_text = self.clean_text(subtitles_text)
         similarity = self.similarity(gen_text,subtitles_text)
@@ -249,66 +284,162 @@ class F5TTS:
             print(f"ALARM !!! Generated text: {gen_text} != Subtitles text: {subtitles_text} \n Similarity: {similarity}")
         return gen_text == subtitles_text,gen_text,subtitles_text,similarity 
 
-    def generate_from_csv_with_speakers(self, csv_file, output_folder, speakers, default_speaker, rewrite=False):
-        os.makedirs(output_folder, exist_ok=True)
-        filename_errors_csv = f"{str(csv_file)[:-4]}_errors.csv"
-        with open(csv_file, 'r', encoding='utf-8') as csvfile, \
-             open(filename_errors_csv, 'w', newline='', encoding='utf-8') as csv_writer:
-            reader = csv.DictReader(csvfile)
-            writer_filednames = [*reader.fieldnames, "similarity","gen_error","whisper_text","subtitle_text"]
-            writer = csv.DictWriter(csv_writer, fieldnames=writer_filednames, delimiter=';')
-            writer.writeheader()
-            generated_segments = []
-            generated_texts = []
-            for i, row in enumerate(reader):
-                file_wave = os.path.join(output_folder, f"segment_{i + 1}.wav")
-                if not rewrite and os.path.exists(file_wave):
-                    continue
-                duration = float(row['Duration'])
-                gen_text = row['Text']
-                generated_texts.append(gen_text)
-                previous_speed = float(row.get('TTS Speed Closest', 1.0))  # Read the speed from `speed_tts_closest`, default to 1.0 if missing
+    def _get_speaker_config(self, row, speakers, default_speaker):
+        """Get speaker configuration for the given row."""
+        try:
+            speaker_name = row.get('Speaker', '')
+            if speaker_name and speaker_name in speakers:
+                return speakers[speaker_name]["ref_text"], speakers[speaker_name]["ref_file"]
+            raise KeyError(f"Speaker '{speaker_name}' not found")
+        except Exception as e:
+            print(f"Using default speaker: {str(e)}")
+            return default_speaker["ref_text"], default_speaker["ref_file"]
 
-                try:
-                    speaker_name = row['Speaker']
-                    ref_text = speakers[speaker_name]["ref_text"]
-                    ref_file = speakers[speaker_name]["ref_file"]
-                except:
-                    print("Something is wrong. Let's take default speaker")
-                    ref_text = default_speaker["ref_text"]
-                    ref_file = default_speaker["ref_file"]
+    def _generate_audio_segment(self, gen_text, duration, ref_text, ref_file, previous_speed, i):
+        """Generate audio segment for the given text and configuration."""
+        try:
+            wav, sr, _ = self.infer_wav(gen_text, previous_speed, ref_file, ref_text)
+            wav, sr, _ = self.generate_wav_if_longer(
+                wav, sr, gen_text, duration, len(wav)/sr, previous_speed, 
+                ref_file, ref_text, i
+            )
+            return wav, sr, None
+        except Exception as e:
+            return None, None, str(e)
 
-                file_wave_debug = None # f"segment_{i}_speed_{previous_speed}.wav" # for debug
-                wav, sr, previous_duration = self.infer_wav(gen_text, previous_speed, ref_file, ref_text,file_wave=file_wave_debug)
-                
-                wav, sr, previous_duration = self.generate_wav_if_longer(wav, sr, gen_text, duration, previous_duration, previous_speed, ref_file, ref_text, i)
-
-                print(f"Generated WAV-{i} with symbol duration {previous_duration}")        
-                generated_segments.append((wav, file_wave, sr)) 
-                is_equal,gen_text,subtitles_text, similarity = self.is_generated_text_equal_to_subtitles_text(wav, sr, gen_text)
-                writer.writerow({**row, "similarity": f"{similarity:.2f}", "gen_error": "1" if not is_equal else "0", "whisper_text": gen_text, "subtitle_text": subtitles_text})
-            
-            # Reset to the beginning of the file
-            csvfile.seek(0)
-            # Re-create the DictReader to re-parse the header row
-            reader = csv.DictReader(csvfile)      
-            
-            for i, row in enumerate(reader):
-                wav, file_wave, sr = generated_segments[i]
-                generated_texts.append(row['Text'])
+    def _save_audio_segments(self, generated_segments):
+        """Save all generated audio segments to files."""
+        for wav, file_wave, sr in generated_segments:
+            try:
                 sf.write(file_wave, wav, sr)
                 print(f"Saved WAV as {file_wave}")
+            except Exception as e:
+                print(f"Error saving {file_wave}: {str(e)}")
+
+    def _generate_excel_report(self, csv_file, filename_errors_csv):
+        """Generate Excel report from the error CSV file."""
         excel_file_name = os.path.basename(filename_errors_csv)
         excel_file_name = excel_file_name.split("_3.0_")[0] + ".xlsx"
         parent_of_parent = os.path.dirname(os.path.dirname(filename_errors_csv))
         excel_file = os.path.join(parent_of_parent, excel_file_name)
         subtitle_csv.csv2excel(filename_errors_csv, excel_file)
-        print(f"All audio segments generated and saved in {output_folder}")
+        return excel_file
+
+    def _process_row(self, row, i, output_folder, speakers, default_speaker, rewrite, writer):
+        """Process a single row from the CSV file."""
+        file_wave = os.path.join(output_folder, f"segment_{i + 1}.wav")
+        if not rewrite and os.path.exists(file_wave):
+            print(f"Skipping existing file: {file_wave}")
+            return None
+            
+        duration = float(row.get('Duration', 0))
+        gen_text = row.get('Text', '').strip()
+        if not gen_text:
+            print(f"Skipping empty text at row {i+1}")
+            return None
+            
+        previous_speed = float(row.get('TTS Speed Closest', 1.0))
+        ref_text, ref_file = self._get_speaker_config(row, speakers, default_speaker)
+
+        # Generate audio
+        wav, sr, error = self._generate_audio_segment(
+            gen_text, duration, ref_text, ref_file, previous_speed, i
+        )
+        
+        if error:
+            print(f"Error processing row {i+1}: {error}")
+            writer.writerow({
+                **row,
+                "similarity": "0.00",
+                "gen_error": "1",
+                "whisper_text": "",
+                "subtitle_text": f"Error: {error}"
+            })
+            return None
+
+        print(f"Generated WAV-{i+1} with duration {len(wav)/sr:.2f}s")
+        
+        # Verify the generated audio
+        is_equal, gen_text_clean, subtitles_text, similarity = self.is_generated_text_equal_to_subtitles_text(
+            wav, sr, gen_text
+        )
+        
+        # Write results
+        writer.writerow({
+            **row,
+            "similarity": f"{similarity:.2f}",
+            "gen_error": "1" if not is_equal else "0",
+            "whisper_text": gen_text_clean,
+            "subtitle_text": subtitles_text
+        })
+        
+        return wav, file_wave, sr
+
+    def generate_from_csv_with_speakers(self, csv_file, output_folder, speakers, default_speaker, rewrite=False):
+        """
+        Generate audio segments from a CSV file with speaker configurations.
+        
+        Args:
+            csv_file: Path to input CSV file
+            output_folder: Directory to save generated audio files
+            speakers: Dictionary mapping speaker names to their configurations
+            default_speaker: Default speaker configuration to use when speaker not found
+            rewrite: If True, overwrite existing files
+        """
+        os.makedirs(output_folder, exist_ok=True)
+        filename_errors_csv = f"{str(csv_file)[:-4]}_errors.csv"
+        
+        # Read and validate input
+        try:
+            with open(csv_file, 'r', encoding='utf-8') as csvfile:
+                rows = list(csv.DictReader(csvfile))
+        except Exception as e:
+            print(f"Error reading CSV file: {str(e)}")
+            return
+            
+        if not rows:
+            print("No rows found in CSV file")
+            return
+        
+        generated_segments = []
+        
+        # Process each row and write results to CSV
+        with open(filename_errors_csv, 'w', newline='', encoding='utf-8') as csv_writer:
+            fieldnames = rows[0].keys() if rows else []
+            writer_filednames = [*fieldnames, "similarity", "gen_error", "whisper_text", "subtitle_text"]
+            writer = csv.DictWriter(csv_writer, fieldnames=writer_filednames, delimiter=';')
+            writer.writeheader()
+            
+            for i, row in enumerate(rows):
+                result = self._process_row(
+                    row, i, output_folder, speakers, default_speaker, rewrite, writer
+                )
+                if result:
+                    generated_segments.append(result)
+        
+        # Save all audio segments
+        self._save_audio_segments(generated_segments)
+        
+        # Generate Excel report
+        try:
+            excel_file = self._generate_excel_report(csv_file, filename_errors_csv)
+            print(f"Excel report generated: {excel_file}")
+        except Exception as e:
+            print(f"Error generating Excel report: {str(e)}")
+        
+        print(f"Processing complete. Generated {len(generated_segments)} audio segments in {output_folder}")
+        return filename_errors_csv
 
 
 
     def generate_speeds_csv(self, output_csv, ref_text, ref_file):
-        gen_text = "Some call me nature, others call me mother nature. Let's try some long text. We are just trying to get more fidelity. It's OK!"
+        gen_text = self.DEFAULT_MODELS[self.language]["gen_text_speeds_csv"]
+        print(f"Generating speeds CSV for language: {self.language}")
+        print(f"gen text: {gen_text}")
+        print(f"Reference text: {ref_text}")
+        print(f"Reference file: {ref_file}")
+        # input("Press Enter to continue...")
+        
         speeds = [0.3,0.4,0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5]
         rows = []
         Path(output_csv).parent.mkdir(parents=True, exist_ok=True)

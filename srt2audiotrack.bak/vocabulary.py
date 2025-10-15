@@ -3,13 +3,21 @@ from pathlib import Path
 from functools import reduce
 
 def check_vocabular(voice_dir):
+    """Ensure a vocabulary file exists in ``voice_dir``.
+
+    If the ``vocabular.txt`` file is missing, an empty file will be created so
+    the pipeline can continue without manual intervention.  The path to the
+    vocabulary file is always returned.
+    """
+
     vocabular_pth = Path(voice_dir) / "vocabular.txt"
-    if vocabular_pth.is_file():
-        return vocabular_pth
+    if not vocabular_pth.is_file():
+        print(f"Vocabulary file not found at {vocabular_pth}, creating default.")
+        vocabular_pth.parent.mkdir(parents=True, exist_ok=True)
+        vocabular_pth.write_text("", encoding="utf-8")
     else:
-        print(f"I need vocabulary file {vocabular_pth}")
-        exit(1)
-    print(f"Vocabulary file is {vocabular_pth}.")
+        print(f"Vocabulary file is {vocabular_pth}.")
+    return vocabular_pth
 
 def two_cases(title):
     if not title:

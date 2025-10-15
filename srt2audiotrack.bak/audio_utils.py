@@ -1,55 +1,13 @@
 import csv
 import os
-from pathlib import Path
 import soundfile as sf
 import numpy as np
 from .sync_utils import time_to_seconds
 import librosa
-import demucs.separate
 import shutil
 import librosa
 
-def prepare_and_normalize_accompaniment(acomponiment_temp: Path,
-                                        acomponiment_temp_stereo: Path,
-                                        acomponiment: Path,
-                                        sample_rate: int,
-                                        subtype: str = 'PCM_16'):
-    """
-    Read demucs output, resample to sample_rate, ensure stereo and normalize.
-    Returns path to final accompaniment file (acomponiment).
-    """
-    # read with soundfile to keep float32 and channel count intact
-    data, sr_in = sf.read(str(acomponiment_temp), dtype='float32', always_2d=True)  # (frames, channels)
-    channels = data.shape[1]
-
-    # resample per-channel if needed
-    if sr_in != sample_rate:
-        resampled_ch = []
-        for ch in range(channels):
-            resampled_ch.append(librosa.resample(data[:, ch], orig_sr=sr_in, target_sr=sample_rate))
-        # stack channels => (channels, frames) then transpose to (frames, channels)
-        resampled = np.vstack(resampled_ch).T
-        sr_out = sample_rate
-    else:
-        resampled = data
-        sr_out = sr_in
-
-    # write a resampled temp file (don't overwrite demucs original)
-    temp_resampled = acomp = Path(acomponiment_temp).with_name(f"{acomponiment_temp.stem}_resampled.wav")
-    sf.write(str(temp_resampled), resampled, sr_out, subtype=subtype)
-
-    # ensure stereo: if mono duplicate channel, if >2 keep first two
-    if resampled.shape[1] == 1:
-        convert_mono_to_stereo(str(temp_resampled), str(acomponiment_temp_stereo))
-    else:
-        if resampled.shape[1] > 2:
-            res_stereo = resampled[:, :2]
-        else:
-            res_stereo = resampled
-        sf.write(str(acomponiment_temp_stereo), res_stereo, sr_out, subtype=subtype)
-
-    # normalize the stereo file (uses existing normalize_stereo_audio implementation)
-    normalize_stereo_audio(str(acomponiment_temp_stereo), str(acomponiment))
+from .docker_models import run_demucs
 
 
 def extract_acomponiment_or_vocals(directory, subtitle_name, out_ukr_wav,
@@ -64,22 +22,19 @@ def extract_acomponiment_or_vocals(directory, subtitle_name, out_ukr_wav,
     demucs_folder = model_folder / out_ukr_wav.stem
     acomponiment_temp = demucs_folder / sound_name
     acomponiment_temp_stereo = directory / f"{subtitle_name}{pipeline_suffix}_stereo.wav"
-    demucs.separate.main(["--jobs", "4","-o", str(directory), "--two-stems", "vocals", "-n", model_demucs, str(out_ukr_wav)])
+    run_demucs(out_ukr_wav, directory, model=model_demucs)
     
     if acomponiment_temp.exists():
-            prepare_and_normalize_accompaniment(acomponiment_temp,
-                                        acomponiment_temp_stereo,
-                                        acomponiment,
-                                        sample_rate,
-                                        subtype = 'PCM_16')
             # Load and normalize the audio
             # y, sr = librosa.load(acomponiment_temp, sr=44100)  # load with 44.1k
             # y_16k = librosa.resample(y, orig_sr=44100, target_sr=sample_rate)
             # sf.write(acomponiment_temp, y_16k, sample_rate)
-            # convert_mono_to_stereo(acomponiment_temp, acomponiment_temp_stereo)
-            # normalize_stereo_audio(acomponiment_temp_stereo, acomponiment)
+            convert_mono_to_stereo(acomponiment_temp, acomponiment_temp_stereo)
+            normalize_stereo_audio(acomponiment_temp_stereo, acomponiment)
             # Clean up
+            shutil.move(acomponiment_temp, acomponiment)
             # shutil.rmtree(model_folder)
+
 
     # Verify the accompaniment exists and is valid
     if not acomponiment.exists():
@@ -146,11 +101,9 @@ def collect_full_audiotrack(fragments_folder, csv_file, output_audio_file):
 def convert_mono_to_stereo(input_path: str, output_path: str):
     # Load mono audio
     audio, sr = librosa.load(input_path, sr=None, mono=True)
-    if audio.ndim == 1:
-        # Duplicate mono channel to create stereo
-        stereo_audio = np.vstack([audio, audio])
-    else:
-        print("The input file is not mono. Just copying to {output_path}.")
+
+    # Duplicate mono channel to create stereo
+    stereo_audio = np.vstack([audio, audio])
 
     # Save as stereo WAV
     sf.write(output_path, stereo_audio.T, sr)
@@ -158,45 +111,38 @@ def convert_mono_to_stereo(input_path: str, output_path: str):
     print(f"Converted {input_path} to stereo and saved as {output_path}")
 
 
-def normalize_stereo_audio(input_path: str, output_path: str, target_db: float = -18.0, max_gain_db: float = 0.0, subtype: str = 'PCM_16'):
-    """
-    Normalize stereo audio per channel to target_db (dBFS).
-    Prevents positive boosting above max_gain_db (default 0 dB) and avoids clipping by peak-limiting.
-    """
-    # read with soundfile to preserve exact shape/dtype: returns (frames, channels)
-    audio, sr = sf.read(input_path, dtype='float32', always_2d=True)
-    if audio.ndim == 1 or audio.shape[1] < 2:
+def normalize_stereo_audio(input_path: str, output_path: str, target_db: float = -18.0):
+    audio, sr = librosa.load(input_path, sr=None, mono=False)
+
+    if audio.ndim == 1:
         raise ValueError("The input file is mono. Use a mono-specific normalization function.")
 
-    # transpose to (channels, samples)
-    audio_ch = audio.T.astype(np.float64)
+    # Compute RMS loudness for each channel
+    rms_left = np.sqrt(np.mean(audio[0]**2))
+    rms_right = np.sqrt(np.mean(audio[1]**2))
+    print(f"RMS Left: {rms_left}, RMS Right: {rms_right}")
 
-    eps = 1e-12
-    # per-channel RMS
-    rms = np.sqrt(np.mean(audio_ch**2, axis=1) + eps)
-    rms_db = 20.0 * np.log10(rms + eps)
+    # Convert RMS to decibel scale
+    rms_db_left = 20 * np.log10(rms_left)
+    rms_db_right = 20 * np.log10(rms_right)
+    print(f"RMS dB Left: {rms_db_left}, RMS dB Right: {rms_db_right}")
+    
+    # Compute gain needed for each channel
+    gain_db_left = target_db - rms_db_left
+    gain_db_right = target_db - rms_db_right
 
-    # desired gain per channel, but do not allow boosting above max_gain_db
-    gain_db = target_db - rms_db
-    gain_db = np.minimum(gain_db, max_gain_db)
-    gain = 10.0 ** (gain_db / 20.0)
+    gain_left = 10 ** (gain_db_left / 20)
+    gain_right = 10 ** (gain_db_right / 20)
+    print(f"Gain Left: {gain_left}, Gain Right: {gain_right}")
 
-    # apply per-channel gain
-    normalized = audio_ch * gain[:, None]
+    # Apply gain to each channel separately
+    normalized_audio = np.vstack([audio[0] * gain_left, audio[1] * gain_right])
+    # normalized_audio = np.clip(normalized_audio, -1.0, 1.0)
 
-    # peak limiting: if any sample exceeds 1.0, scale down slightly below 1.0 to avoid clipping on integer write
-    peak = np.max(np.abs(normalized))
-    if peak > 1.0:
-        scale = 0.999 / peak
-        normalized *= scale
+    # Save the normalized stereo audio
+    sf.write(output_path, normalized_audio.T, sr)
 
-    # final safety clip
-    normalized = np.clip(normalized, -1.0, 1.0)
-
-    # write back as (frames, channels) with explicit subtype
-    sf.write(output_path, normalized.T.astype(np.float32), sr, subtype=subtype)
-    print(f"Normalized {input_path} to {target_db} dB per channel (max_gain_db={max_gain_db}) and saved as {output_path}")
-
+    print(f"Normalized {input_path} to {target_db} dB per channel and saved as {output_path}")
 
 def adjust_stereo_volume_with_librosa(
         original_wav,
@@ -224,9 +170,8 @@ def adjust_stereo_volume_with_librosa(
 
     # Convert time to sample index
     for start_time, end_time in volume_intervals:
-        start_time, end_time = time_to_seconds(start_time), time_to_seconds(end_time)
-        start_sample = int(librosa.time_to_samples(float(start_time), sr=sr))
-        end_sample = int(librosa.time_to_samples(float(end_time), sr=sr))
+        start_sample = time2sample(start_time, sr)
+        end_sample = time2sample(end_time, sr)
 
         # Apply volume adjustment in the given range for both channels
         y[:, start_sample:end_sample] = \
@@ -238,3 +183,7 @@ def adjust_stereo_volume_with_librosa(
     sf.write(output_audio, y.T, sr)  # Transpose y to match the expected shape for stereo
 
     print(f"Stereo volume adjusted and saved to {output_audio}")
+
+def time2sample(time, sr):
+    seconds = time_to_seconds(time) 
+    return int(librosa.time_to_samples(float(seconds), sr=sr))
