@@ -8,7 +8,7 @@ from ..lock_utils import file_lock
 
 
 def generate_audio(csv_file: str | Path, output_dir: str | Path, language: str = "en") -> Path:
-    """Generate speech audio files from a CSV using F5-TTS in Docker."""
+    """Generate speech audio files from a CSV using the local F5-TTS installation."""
     with file_lock(csv_file):
         run_f5_tts(csv_file, output_dir, language=language)
         return Path(output_dir)
