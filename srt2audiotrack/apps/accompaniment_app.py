@@ -8,7 +8,7 @@ from ..lock_utils import file_lock
 
 
 def split_accompaniment(audio_path: str | Path, output_dir: str | Path, model: str = "mdx_extra") -> Path:
-    """Extract accompaniment from ``audio_path`` using Demucs Docker image."""
+    """Extract accompaniment from ``audio_path`` using the local Demucs installation."""
     with file_lock(audio_path):
         run_demucs(audio_path, output_dir, model=model)
         return Path(output_dir)

@@ -29,32 +29,21 @@ pip install f5-tts demucs librosa soundfile numpy ffmpeg-python
 pip install -r requirements.txt
 ```
 
-## Docker Setup
+## External command line tools
 
-The heavy models used by this project—Whisper, Demucs and F5-TTS—are
-executed inside Docker containers.  Install Docker before running the
-pipeline.
+The pipeline calls the command line interfaces exposed by
+`openai-whisper`, `demucs` and `f5-tts`. Installing the packages listed in
+the previous section places the required entry points in the active
+Python environment. You can verify that everything is available with:
 
-### Windows
-1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/).
-2. Enable the WSL2 backend during installation.
-3. After installation open *PowerShell* and verify:
-   ```powershell
-   docker version
-   ```
+```bash
+python -m whisper --help
+python -m demucs.separate --help
+python -m f5_tts.cli --help
+```
 
-### Linux
-1. Install the Docker Engine:
-   ```bash
-   sudo apt update
-   sudo apt install -y docker.io
-   sudo systemctl enable --now docker
-   ```
-2. Allow your user to run Docker without `sudo`:
-   ```bash
-   sudo usermod -aG docker $USER
-   ```
-3. Log out and back in, then verify with `docker version`.
+If any command fails, double-check that the corresponding package is
+installed and accessible in the currently activated environment.
 
 ## Usage
 
