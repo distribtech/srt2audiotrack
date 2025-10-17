@@ -1,6 +1,9 @@
 """Utility functions extracted from main.py."""
 
+from __future__ import annotations
+
 import os
+from collections.abc import Callable
 from pathlib import Path
 import librosa
 
@@ -10,12 +13,6 @@ from . import sync_utils
 from . import audio_utils
 from . import ffmpeg_utils
 from . import vocabulary
-from .audio_utils import (
-    convert_mono_to_stereo,
-    normalize_stereo_audio,
-    extract_acomponiment_or_vocals,
-    adjust_stereo_volume_with_librosa,
-)
 
 class SubtitlePipeline:
     """Pipeline for generating English voice-over for a subtitle-video pair."""
@@ -29,6 +26,14 @@ class SubtitlePipeline:
         acomponiment_coef: float,
         voice_coef: float,
         output_folder: str | Path = "",
+        *,
+        vocabulary_module=vocabulary,
+        subtitle_csv_module=subtitle_csv,
+        tts_audio_module=tts_audio,
+        sync_utils_module=sync_utils,
+        audio_utils_module=audio_utils,
+        ffmpeg_utils_module=ffmpeg_utils,
+        librosa_module=librosa,
     ) -> None:
         # Convert string paths to Path objects if needed
         self.subtitle = Path(subtitle) if isinstance(subtitle, str) else subtitle
@@ -65,35 +70,20 @@ class SubtitlePipeline:
         self.mix_video = self.output_folder / f"{self.subtitle_name}_out_mix.mp4"
         self.sample_rate = None
 
+        self.vocabulary = vocabulary_module
+        self.subtitle_csv = subtitle_csv_module
+        self.tts_audio = tts_audio_module
+        self.sync_utils = sync_utils_module
+        self.audio_utils = audio_utils_module
+        self.ffmpeg_utils = ffmpeg_utils_module
+        self.librosa = librosa_module
+
     def run(self, video_path: str) -> None:
-        self.directory.mkdir(parents=True, exist_ok=True)
-        # Use public wrappers so that behaviour can be monkeypatched in tests
         self.directory.mkdir(parents=True, exist_ok=True)
         self._prepare_subtitles()
 
         self._convert_subs_to_audio()
         self.process_video_file(video_path)
-
-    # ------------------------------------------------------------------
-    # Public wrappers used by tests and external callers
-    # ------------------------------------------------------------------
-
-    # def prepare_subtitles(self) -> tuple[Path, str, Path]:
-    #     """Prepare subtitle file and return paths.
-
-    #     Returns
-    #     -------
-    #     tuple[Path, str, Path]
-    #         The working directory, subtitle name and modified subtitle path.
-    #     """
-    #     self.directory.mkdir(parents=True, exist_ok=True)
-    #     self._prepare_subtitles()
-    #     return self.directory, self.subtitle_name, self.out_path
-
-    # def subtitles_to_audio(self) -> tuple[Path, Path]:
-    #     """Convert prepared subtitles to audio files."""
-    #     self._convert_subs_to_audio()
-    #     return self.srt_csv_file, self.stereo_eng_file
 
     def process_video_file(self, video_path: str) -> None:
         """Process a video file using already generated audio tracks."""
@@ -104,22 +94,29 @@ class SubtitlePipeline:
 
     def _prepare_subtitles(self) -> None:
         if not self.out_path.exists():
-            vocabulary.modify_subtitles_with_vocabular_text_only(self.subtitle, self.vocabular, self.out_path)
+            self.vocabulary.modify_subtitles_with_vocabular_text_only(
+                self.subtitle,
+                self.vocabular,
+                self.out_path,
+            )
 
     def _convert_subs_to_audio(self) -> None:
         if not self.srt_csv_file.exists():
-            subtitle_csv.srt_to_csv(self.out_path, self.srt_csv_file)
+            self.subtitle_csv.srt_to_csv(self.out_path, self.srt_csv_file)
 
         if not self.output_csv_with_speakers.exists():
-            subtitle_csv.add_speaker_columns(self.srt_csv_file, self.output_csv_with_speakers)
+            self.subtitle_csv.add_speaker_columns(self.srt_csv_file, self.output_csv_with_speakers)
 
         if not self.output_with_preview_speeds_csv.exists():
-            subtitle_csv.add_speed_columns_with_speakers(
+            self.subtitle_csv.add_speed_columns_with_speakers(
                 self.output_csv_with_speakers, self.speakers, self.output_with_preview_speeds_csv
             )
 
-        if not tts_audio.F5TTS.all_segments_in_folder_check(self.output_with_preview_speeds_csv, self.directory):
-            tts_audio.F5TTS().generate_from_csv_with_speakers(
+        if not self.tts_audio.F5TTS.all_segments_in_folder_check(
+            self.output_with_preview_speeds_csv,
+            self.directory,
+        ):
+            self.tts_audio.F5TTS().generate_from_csv_with_speakers(
                 self.output_with_preview_speeds_csv,
                 self.directory,
                 self.speakers,
@@ -128,40 +125,43 @@ class SubtitlePipeline:
             )
 
         if not self.corrected_time_output_speed_csv.exists():
-            sync_utils.correct_end_times_in_csv(
+            self.sync_utils.correct_end_times_in_csv(
                 self.directory,
                 self.output_with_preview_speeds_csv,
                 self.corrected_time_output_speed_csv,
             )
 
         if not self.output_audio_file.exists():
-            audio_utils.collect_full_audiotrack(
+            self.audio_utils.collect_full_audiotrack(
                 self.directory,
                 self.corrected_time_output_speed_csv,
                 self.output_audio_file,
             )
 
         if not self.stereo_eng_file.exists():
-            convert_mono_to_stereo(self.output_audio_file, self.stereo_eng_file)
+            self.audio_utils.convert_mono_to_stereo(self.output_audio_file, self.stereo_eng_file)
 
     def _extract_ukrainian_audio(self, video_path: str) -> None:
         if not self.out_ukr_audio.exists():
-            ffmpeg_utils.extract_audio(video_path, self.out_ukr_audio)
+            self.ffmpeg_utils.extract_audio(video_path, self.out_ukr_audio)
 
     def _separate_accompaniment(self) -> None:
         if not self.acomponiment.exists():
-            self.sample_rate = librosa.get_samplerate(self.out_ukr_audio)
-            extracted = extract_acomponiment_or_vocals(
-                self.directory, self.subtitle_name, self.out_ukr_audio,
-                sample_rate=self.sample_rate)
-            normalize_stereo_audio(extracted, self.acomponiment)
+            self.sample_rate = self.librosa.get_samplerate(self.out_ukr_audio)
+            extracted = self.audio_utils.extract_acomponiment_or_vocals(
+                self.directory,
+                self.subtitle_name,
+                self.out_ukr_audio,
+                sample_rate=self.sample_rate,
+            )
+            self.audio_utils.normalize_stereo_audio(extracted, self.acomponiment)
             os.remove(extracted)
 
     def _adjust_volume(self) -> None:
         if not self.output_ukr_audio.exists():
-            volume_intervals = ffmpeg_utils.parse_volume_intervals(self.srt_csv_file)
-            normalize_stereo_audio(self.acomponiment, self.output_ukr_audio)
-            adjust_stereo_volume_with_librosa(
+            volume_intervals = self.ffmpeg_utils.parse_volume_intervals(self.srt_csv_file)
+            self.audio_utils.normalize_stereo_audio(self.acomponiment, self.output_ukr_audio)
+            self.audio_utils.adjust_stereo_volume_with_librosa(
                 self.out_ukr_audio,
                 self.acomponiment,
                 self.output_ukr_audio,
@@ -175,7 +175,12 @@ class SubtitlePipeline:
         ext = Path(video_path).suffix.lower()
         self.mix_video = self.directory.parent / f"{self.subtitle_name}_out_mix{ext}"
         if not self.mix_video.exists():
-            ffmpeg_utils.create_ffmpeg_mix_video(video_path, self.output_ukr_audio, self.stereo_eng_file, self.mix_video)
+            self.ffmpeg_utils.create_ffmpeg_mix_video(
+                video_path,
+                self.output_ukr_audio,
+                self.stereo_eng_file,
+                self.mix_video,
+            )
 
     @staticmethod
     def list_subtitle_files(root_dir: str | Path, extension: str, exclude_ext: str) -> list[str]:
@@ -186,8 +191,9 @@ class SubtitlePipeline:
             if not str(p).endswith(exclude_ext)
         ]
 
-    @staticmethod
+    @classmethod
     def create_video_with_english_audio(
+        cls,
         video_path: str,
         subtitle: Path,
         speakers: dict,
@@ -196,17 +202,26 @@ class SubtitlePipeline:
         acomponiment_coef: float,
         voice_coef: float,
         output_folder: Path,
+        *,
+        pipeline_factory: Callable[..., "SubtitlePipeline"] | None = None,
+        pipeline_kwargs: dict | None = None,
     ) -> None:
         """Convenience wrapper used by ``main.py`` for processing a single video."""
-        pipeline = SubtitlePipeline(
-            subtitle,
-            vocabular,
-            speakers,
-            default_speaker,
-            acomponiment_coef,
-            voice_coef,
-            output_folder,
-        )
+
+        factory = pipeline_factory or cls
+        pipeline_arguments = {
+            "subtitle": subtitle,
+            "vocabular": vocabular,
+            "speakers": speakers,
+            "default_speaker": default_speaker,
+            "acomponiment_coef": acomponiment_coef,
+            "voice_coef": voice_coef,
+            "output_folder": output_folder,
+        }
+        if pipeline_kwargs:
+            pipeline_arguments.update(pipeline_kwargs)
+
+        pipeline = factory(**pipeline_arguments)
         pipeline.run(video_path)
 
 
