@@ -25,10 +25,10 @@ def extract_audio(input_video, output_audio, target_lufs=-16.0, target_peak=-1.0
                 i=target_lufs,
                 tp=target_peak)
         .output(str(output_audio),
-                acodec='pcm_s16le',
-                # ar='44100',  # Standard CD quality sample rate
-                # ac=2 # Stereo audio
-                )      
+                acodec='flac',
+                ar='48000',
+                ac=2
+                )
         .overwrite_output()
         .run()
     )

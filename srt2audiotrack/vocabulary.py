@@ -6,10 +6,11 @@ def check_vocabular(voice_dir):
     vocabular_pth = Path(voice_dir) / "vocabular.txt"
     if vocabular_pth.is_file():
         return vocabular_pth
-    else:
-        print(f"I need vocabulary file {vocabular_pth}")
-        exit(1)
+    voice_dir = Path(voice_dir)
+    voice_dir.mkdir(parents=True, exist_ok=True)
+    vocabular_pth.touch(exist_ok=True)
     print(f"Vocabulary file is {vocabular_pth}.")
+    return vocabular_pth
 
 def two_cases(title):
     if not title:

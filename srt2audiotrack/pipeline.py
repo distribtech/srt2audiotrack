@@ -56,11 +56,11 @@ class SubtitlePipeline:
         self.output_with_preview_speeds_csv = self.directory / f"{self.subtitle_name}_3.0_output_speed.csv"
         self.corrected_time_output_speed_csv = self.directory / f"{self.subtitle_name}_4_corrected_output_speed.csv"
 
-        self.output_audio_file = self.directory / f"{self.subtitle_name}_5.0_output_audiotrack_eng.wav"
-        self.stereo_eng_file = self.directory / f"{self.subtitle_name}_5.3_stereo_eng.wav"
-        self.out_ukr_wav = self.directory / f"{self.subtitle_name}_5.5_out_ukr.wav"
-        self.acomponiment = self.directory / f"{self.subtitle_name}_5.7_accompaniment_ukr.wav"
-        self.output_ukr_wav = self.directory / f"{self.subtitle_name}_6_out_reduced_ukr.wav"
+        self.output_audio_file = self.directory / f"{self.subtitle_name}_5.0_output_audiotrack_eng.flac"
+        self.stereo_eng_file = self.directory / f"{self.subtitle_name}_5.3_stereo_eng.flac"
+        self.out_ukr_audio = self.directory / f"{self.subtitle_name}_5.5_out_ukr.flac"
+        self.acomponiment = self.directory / f"{self.subtitle_name}_5.7_accompaniment_ukr.flac"
+        self.output_ukr_audio = self.directory / f"{self.subtitle_name}_6_out_reduced_ukr.flac"
         
         self.mix_video = self.output_folder / f"{self.subtitle_name}_out_mix.mp4"
         self.sample_rate = None
@@ -145,26 +145,26 @@ class SubtitlePipeline:
             convert_mono_to_stereo(self.output_audio_file, self.stereo_eng_file)
 
     def _extract_ukrainian_audio(self, video_path: str) -> None:
-        if not self.out_ukr_wav.exists():
-            ffmpeg_utils.extract_audio(video_path, self.out_ukr_wav)
+        if not self.out_ukr_audio.exists():
+            ffmpeg_utils.extract_audio(video_path, self.out_ukr_audio)
 
     def _separate_accompaniment(self) -> None:
         if not self.acomponiment.exists():
-            self.sample_rate = librosa.get_samplerate(self.out_ukr_wav)
+            self.sample_rate = librosa.get_samplerate(self.out_ukr_audio)
             extracted = extract_acomponiment_or_vocals(
-                self.directory, self.subtitle_name, self.out_ukr_wav,
+                self.directory, self.subtitle_name, self.out_ukr_audio,
                 sample_rate=self.sample_rate)
             normalize_stereo_audio(extracted, self.acomponiment)
             os.remove(extracted)
 
     def _adjust_volume(self) -> None:
-        if not self.output_ukr_wav.exists():
+        if not self.output_ukr_audio.exists():
             volume_intervals = ffmpeg_utils.parse_volume_intervals(self.srt_csv_file)
-            normalize_stereo_audio(self.acomponiment, self.output_ukr_wav)
+            normalize_stereo_audio(self.acomponiment, self.output_ukr_audio)
             adjust_stereo_volume_with_librosa(
-                self.out_ukr_wav,
+                self.out_ukr_audio,
                 self.acomponiment,
-                self.output_ukr_wav,
+                self.output_ukr_audio,
                 volume_intervals,
                 self.acomponiment,
                 self.acomponiment_coef,
@@ -175,7 +175,7 @@ class SubtitlePipeline:
         ext = Path(video_path).suffix.lower()
         self.mix_video = self.directory.parent / f"{self.subtitle_name}_out_mix{ext}"
         if not self.mix_video.exists():
-            ffmpeg_utils.create_ffmpeg_mix_video(video_path, self.output_ukr_wav, self.stereo_eng_file, self.mix_video)
+            ffmpeg_utils.create_ffmpeg_mix_video(video_path, self.output_ukr_audio, self.stereo_eng_file, self.mix_video)
 
     @staticmethod
     def list_subtitle_files(root_dir: str | Path, extension: str, exclude_ext: str) -> list[str]:
