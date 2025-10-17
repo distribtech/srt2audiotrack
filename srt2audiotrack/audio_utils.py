@@ -7,11 +7,23 @@ from .sync_utils import time_to_seconds
 import librosa
 import demucs.separate
 import shutil
-import librosa
+
+
+def _write_audio_file(path: str | Path, data: np.ndarray, sample_rate: int, subtype: str | None = None) -> None:
+    """Write audio data to disk using the container format inferred from ``path``."""
+
+    path = str(path)
+    suffix = Path(path).suffix.lower()
+    if suffix == ".flac":
+        sf.write(path, data, sample_rate, format="FLAC", subtype=subtype or "PCM_16")
+    elif suffix == ".wav":
+        sf.write(path, data, sample_rate, format="WAV", subtype=subtype or "PCM_16")
+    else:
+        sf.write(path, data, sample_rate)
 
 def prepare_and_normalize_accompaniment(acomponiment_temp: Path,
                                         acomponiment_temp_stereo: Path,
-                                        acomponiment: Path,
+                                        acompaniment_output: Path,
                                         sample_rate: int,
                                         subtype: str = 'PCM_16'):
     """
@@ -35,8 +47,8 @@ def prepare_and_normalize_accompaniment(acomponiment_temp: Path,
         sr_out = sr_in
 
     # write a resampled temp file (don't overwrite demucs original)
-    temp_resampled = acomp = Path(acomponiment_temp).with_name(f"{acomponiment_temp.stem}_resampled.wav")
-    sf.write(str(temp_resampled), resampled, sr_out, subtype=subtype)
+    temp_resampled = Path(acomponiment_temp).with_name(f"{acomponiment_temp.stem}_resampled.flac")
+    _write_audio_file(temp_resampled, resampled, sr_out, subtype=subtype)
 
     # ensure stereo: if mono duplicate channel, if >2 keep first two
     if resampled.shape[1] == 1:
@@ -46,30 +58,30 @@ def prepare_and_normalize_accompaniment(acomponiment_temp: Path,
             res_stereo = resampled[:, :2]
         else:
             res_stereo = resampled
-        sf.write(str(acomponiment_temp_stereo), res_stereo, sr_out, subtype=subtype)
+        _write_audio_file(acomponiment_temp_stereo, res_stereo, sr_out, subtype=subtype)
 
     # normalize the stereo file (uses existing normalize_stereo_audio implementation)
-    normalize_stereo_audio(str(acomponiment_temp_stereo), str(acomponiment))
+    normalize_stereo_audio(str(acomponiment_temp_stereo), str(acompaniment_output))
 
 
-def extract_acomponiment_or_vocals(directory, subtitle_name, out_ukr_wav,
+def extract_acomponiment_or_vocals(directory, subtitle_name, out_ukr_audio,
         sample_rate,
-        pipeline_suffix="_extracted.wav",
+        pipeline_suffix="_extracted.flac",
         model_demucs = "mdx_extra",
         sound_name="no_vocals.wav",
         subtype='PCM_16'  # Use 16-bit PCM
     ):
-    acomponiment = directory / f"{subtitle_name}{pipeline_suffix}"    
+    acomp_output = directory / f"{subtitle_name}{pipeline_suffix}"
     model_folder = directory / model_demucs
-    demucs_folder = model_folder / out_ukr_wav.stem
+    demucs_folder = model_folder / out_ukr_audio.stem
     acomponiment_temp = demucs_folder / sound_name
-    acomponiment_temp_stereo = directory / f"{subtitle_name}{pipeline_suffix}_stereo.wav"
-    demucs.separate.main(["--jobs", "4","-o", str(directory), "--two-stems", "vocals", "-n", model_demucs, str(out_ukr_wav)])
-    
+    acomponiment_temp_stereo = directory / f"{subtitle_name}{pipeline_suffix}_stereo.flac"
+    demucs.separate.main(["--jobs", "4","-o", str(directory), "--two-stems", "vocals", "-n", model_demucs, str(out_ukr_audio)])
+
     if acomponiment_temp.exists():
             prepare_and_normalize_accompaniment(acomponiment_temp,
                                         acomponiment_temp_stereo,
-                                        acomponiment,
+                                        acomp_output,
                                         sample_rate,
                                         subtype = 'PCM_16')
             # Load and normalize the audio
@@ -82,9 +94,9 @@ def extract_acomponiment_or_vocals(directory, subtitle_name, out_ukr_wav,
             shutil.rmtree(model_folder)
 
     # Verify the accompaniment exists and is valid
-    if not acomponiment.exists():
-        raise FileNotFoundError(f"Failed to extract accompaniment: {acomponiment}")
-    return acomponiment
+    if not acomp_output.exists():
+        raise FileNotFoundError(f"Failed to extract accompaniment: {acomp_output}")
+    return acomp_output
         
     
 
@@ -138,7 +150,7 @@ def collect_full_audiotrack(fragments_folder, csv_file, output_audio_file):
     # Concatenate all segments with silences
     if audio_segments:
         full_audio = np.concatenate(audio_segments)
-        sf.write(output_audio_file, full_audio, sample_rate)
+        _write_audio_file(output_audio_file, full_audio, sample_rate)
         print(f"Full audio track saved to {output_audio_file}")
     else:
         print("No audio segments to concatenate. Please check the input files.")
@@ -153,7 +165,7 @@ def convert_mono_to_stereo(input_path: str, output_path: str):
         print("The input file is not mono. Just copying to {output_path}.")
 
     # Save as stereo WAV
-    sf.write(output_path, stereo_audio.T, sr)
+    _write_audio_file(output_path, stereo_audio.T, sr)
 
     print(f"Converted {input_path} to stereo and saved as {output_path}")
 
@@ -194,7 +206,7 @@ def normalize_stereo_audio(input_path: str, output_path: str, target_db: float =
     normalized = np.clip(normalized, -1.0, 1.0)
 
     # write back as (frames, channels) with explicit subtype
-    sf.write(output_path, normalized.T.astype(np.float32), sr, subtype=subtype)
+    _write_audio_file(output_path, normalized.T.astype(np.float32), sr, subtype=subtype)
     print(f"Normalized {input_path} to {target_db} dB per channel (max_gain_db={max_gain_db}) and saved as {output_path}")
 
 
