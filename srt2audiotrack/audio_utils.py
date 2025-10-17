@@ -79,7 +79,7 @@ def extract_acomponiment_or_vocals(directory, subtitle_name, out_ukr_wav,
             # convert_mono_to_stereo(acomponiment_temp, acomponiment_temp_stereo)
             # normalize_stereo_audio(acomponiment_temp_stereo, acomponiment)
             # Clean up
-            # shutil.rmtree(model_folder)
+            shutil.rmtree(model_folder)
 
     # Verify the accompaniment exists and is valid
     if not acomponiment.exists():
