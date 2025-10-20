@@ -1,177 +1,112 @@
 # srt2audiotrack
 
-`srt2audiotrack` is a powerful tool that automatically generates voiceovers for videos using subtitle files. It combines advanced text-to-speech synthesis with professional audio processing to create natural-sounding voice tracks while preserving the original background music and sound effects.
+`srt2audiotrack` creates polished, multilingual voice-over tracks from subtitle files while keeping the original mix intact. It combines text normalisation, high-quality TTS synthesis, intelligent mixing, and FFmpeg-based mastering into a resumable pipeline that can be orchestrated across multiple workers.
 
-## Key Features
-- 🎤 High-quality TTS voice generation using F5-TTS
-- 🌍 Multi-language support (English and Spanish via `jpgallegoar/F5-Spanish`)
-- 🎵 Intelligent audio processing with Demucs for music/speech separation
-- 🎚️ Precise volume adjustment and mixing
-- 🎬 Preserves original video quality
-- 🚀 Batch processing support
-- 🐍 Easy-to-use Python API
+## Key capabilities
+- 🚀 **End-to-end pipeline** – automatically rewrites subtitles, generates aligned speech, balances against the original soundtrack, and delivers a muxed video output. 【F:srt2audiotrack/pipeline.py†L185-L333】
+- 🗣️ **Speaker-aware synthesis** – supports multiple reference voices with per-speaker speed curves derived from `speeds.csv` metadata. Missing curves are generated on-demand. 【F:srt2audiotrack/subtitle_csv.py†L137-L213】
+- 🧰 **Resumable by design** – every processing stage caches its artefacts so that interrupted runs simply pick up where they left off. 【F:srt2audiotrack/pipeline.py†L246-L333】
+- 📦 **Job manifests & locking** – optional manifest files let you queue work for farms of machines while cooperative lock files prevent duplicate processing. 【F:srt2audiotrack/cli.py†L77-L176】【F:srt2audiotrack/pipeline.py†L33-L361】
 
 ## Installation
+1. Create and activate an environment (example using conda):
+   ```bash
+   conda create -n srt2audio python=3.10
+   conda activate srt2audio
+   ```
+2. Install the core runtime dependencies:
+   ```bash
+   pip install f5-tts demucs librosa soundfile numpy ffmpeg-python
+   ```
+3. Install the project requirements:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Ensure `ffmpeg` is available on your `PATH` for muxing and loudness normalisation.
 
-### 1. Create and activate a conda environment
-```bash
-conda create -n srt2audio python=3.10
-conda activate srt2audio
-```
+## Preparing the `VOICE` library
+The CLI expects a `VOICE` subfolder alongside each subtitle/video set. Populate it with:
+- Reference `.wav` files for each speaker. 【F:srt2audiotrack/subtitle_csv.py†L162-L194】
+- Matching `.txt` transcripts so the tool can validate training text. 【F:srt2audiotrack/subtitle_csv.py†L196-L203】
+- Optional `speeds.csv` curves stored under a folder named after the speaker (generated automatically if missing). 【F:srt2audiotrack/subtitle_csv.py†L177-L213】
+- A shared `vocabular.txt` file for search/replace rules; it will be created if absent. 【F:srt2audiotrack/vocabulary.py†L5-L13】
 
-### 2. Install core dependencies
-```bash
-pip install f5-tts demucs librosa soundfile numpy ffmpeg-python
-```
-
-### 3. Install additional requirements
-```bash
-pip install -r requirements.txt
-```
-
-## External command line tools
-
-The pipeline calls the command line interfaces exposed by
-`openai-whisper`, `demucs` and `f5-tts`. Installing the packages listed in
-the previous section places the required entry points in the active
-Python environment. You can verify that everything is available with:
-
-```bash
-python -m whisper --help
-python -m demucs.separate --help
-python -m f5_tts.cli --help
-```
-
-If any command fails, double-check that the corresponding package is
-installed and accessible in the currently activated environment.
+See `tests/one_voice` for an example directory layout.
 
 ## Usage
-
-### Command Line Interface
-Process all videos in a folder with matching subtitle files:
+### Quick start
+Process every `.srt` file in a directory, producing muxed videos beside the originals:
 ```bash
-python -m srt2audiotrack --subtitle path/to/videos --output_folder results
+python -m srt2audiotrack --subtitle path/to/records
+```
+Process a single subtitle/video pair:
+```bash
+python -m srt2audiotrack --subtitle path/to/video.srt
 ```
 
-Process a single video with its subtitle:
-```bash
-python -m srt2audiotrack --subtitle video.srt --output_folder results
-```
+### Working with manifests and multiple workers
+- Use `--job-manifest-dir` to point to a directory containing plain-text job lists (one subtitle path per line, comments allowed). Duplicate paths are deduplicated automatically. 【F:srt2audiotrack/cli.py†L26-L41】【F:srt2audiotrack/cli.py†L77-L140】
+- Provide `--worker-id` (or rely on the hostname) so lock files record who owns a job. Locks refresh on a heartbeat and are reclaimed when stale, enabling safe restarts across machines. 【F:srt2audiotrack/cli.py†L85-L122】【F:srt2audiotrack/pipeline.py†L210-L361】
 
-Generate Spanish audio using the community Spanish model:
-```bash
-python -m srt2audiotrack --subtitle video.srt --output_folder results --tts_language es
-```
+### Output structure and resume behaviour
+For a subtitle named `example.srt`, intermediate files live under `OUTPUT/example/` while the final muxed video is written beside the subtitle (or into `--output_folder`). 【F:srt2audiotrack/pipeline.py†L171-L333】 The pipeline skips any step whose artefact already exists, so reruns only process missing stages.
 
-### Command Line Options
+### Command line options
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--subtitle` | Path to folder or subtitle file | Required |
-| `--videoext` | Video file extension | `.mp4` |
-| `--srtext` | Subtitle file extension | `.srt` |
-| `--acomponiment_coef` | Original audio mix level | `0.3` |
-| `--voice_coef` | TTS voice volume level | `0.2` |
-| `--output_folder` | Output directory | Same as input |
-| `--tts_language` | Language for F5-TTS model (`en` or `es`) | `en` |
+| `--subtitle` | Path to subtitle file or directory to scan | `records` |
+| `--speeds` | Path to default speeds table | `speeds.csv` |
+| `--delay` | Minimum gap used when collapsing subtitle lines | `0.00001` |
+| `--voice` | Reference voice file used for diagnostics | `basic_ref_en.wav` |
+| `--text` | Reference text used with `--voice` | `some call me nature, others call me mother nature.` |
+| `--videoext` | Expected video extension when scanning folders | `.mp4` |
+| `--srtext` | Subtitle extension when scanning folders | `.srt` |
+| `--outfileending` | Suffix for rendered video names | `_out_mix.mp4` |
+| `--vocabular` | Override path to vocabulary file | `vocabular.txt` |
+| `--config` / `-c` | Optional TOML configuration file | `basic.toml` |
+| `--acomponiment_coef` | Mix level for the background accompaniment | `0.2` |
+| `--voice_coef` | Mix level for generated voice | `0.2` |
+| `--output_folder` | Custom directory for pipeline artefacts and final video | same as subtitle parent |
+| `--job-manifest-dir` | Folder containing job manifest files | *(empty)* |
+| `--worker-id` | Identifier recorded in lock files | hostname or `PIPELINE_WORKER_ID` |
+| `--lock-timeout` | Seconds before a lock is considered stale | `1800.0` |
+| `--lock-heartbeat` | Seconds between lock refreshes | `60.0` |
 
-## How It Works
+(See `python -m srt2audiotrack --help` for the authoritative list.) 【F:srt2audiotrack/cli.py†L44-L123】
 
-### Processing Pipeline
+## What the pipeline does
+1. **Subtitle normalisation** – applies vocabulary replacements and prepares `_0_mod.srt`. 【F:srt2audiotrack/pipeline.py†L246-L254】
+2. **CSV enrichment** – adds speaker assignments and speed hints before triggering TTS generation. 【F:srt2audiotrack/pipeline.py†L254-L276】
+3. **Timing corrections & stitching** – fixes end times and builds a full FLAC narration track. 【F:srt2audiotrack/pipeline.py†L278-L293】
+4. **Source audio prep** – extracts and separates the original soundtrack, resampling and normalising the accompaniment. 【F:srt2audiotrack/pipeline.py†L295-L309】【F:srt2audiotrack/audio_utils.py†L24-L99】
+5. **Dynamic mixing** – applies interval-based volume shaping before muxing with FFmpeg. 【F:srt2audiotrack/pipeline.py†L311-L333】【F:srt2audiotrack/ffmpeg_utils.py†L1-L52】
 
-```
-┌───────────────────────────────────────────────────────────────────────────────┐
-│                                Input Files                                    │
-│  ┌─────────────┐                    ┌────────────────┐                       │
-│  │  video.mp4  │                    │  subtitle.srt  │                       │
-│  └──────┬──────┘                    └───────┬────────┘                       │
-│         │                                    │                                │
-└─────────┼────────────────────────────────────┼────────────────────────────────┘
-          │                                    │
-          ▼                                    ▼
-┌─────────────────────┐            ┌───────────────────────┐
-│  1. Audio Extraction│            │ 2. Subtitle Processing│
-│  • Extract audio    │            │  • Parse timestamps   │
-│  • Normalize levels │            │  • Clean text         │
-└─────────┬───────────┘            └──────────┬────────────┘
-          │                                    │
-          │                                    ▼
-          │                         ┌───────────────────────┐
-          │                         │ 3. Voice Generation  │
-          │                         │  • TTS processing    │
-          │                         │  • Apply timing      │
-          │                         └──────────┬────────────┘
-          │                                    │
-          ▼                                    │
-┌─────────────────────┐                        │
-│ 4. Audio Processing │                        │
-│  • Separate vocals  │◄──────────────────────┘
-│  • Extract music    │
-│  • Adjust levels    │
-└─────────┬───────────┘
-          │
-          ▼
-┌─────────────────────┐
-│ 5. Final Mix        │
-│  • Combine tracks   │
-│  • Normalize output │
-└─────────┬───────────┘
-          │
-          ▼
-┌─────────────────────┐
-│ 6. Video Output     │
-│  • Mux with video   │
-│  • Apply metadata   │
-└─────────┬───────────┘
-          │
-          ▼
-   ┌─────────────┐
-   │  Output     │
-   │  video.mp4  │
-   └─────────────┘
-```
-
-### Audio Processing Details
-1. **Input Handling**
-   - Video and subtitle files are matched by name
-   - Audio is extracted and normalized
-   - Subtitles are parsed and cleaned
-
-2. **Voice Generation**
-   - Text is processed through F5-TTS
-   - Voice clips are generated with precise timing
-   - Natural pauses and intonation are preserved
-
-3. **Audio Mixing**
-   - Original audio is split into vocals and accompaniment
-   - Voice tracks are mixed with background music
-   - Volume levels are balanced automatically
-
-4. **Output**
-   - Final audio is mixed with original video
-   - Metadata is preserved
-   - Output is saved in the specified format
-
-### Using as a module
-The library exposes a functional API that can be used directly in web
-applications. Only a few paths and speaker settings are required:
-
+## Python API
+Use the high-level helper to invoke the pipeline programmatically:
 ```python
 from pathlib import Path
-from srt2audiotrack import create_video_with_english_audio
+from srt2audiotrack import SubtitlePipeline
 
-create_video_with_english_audio(
-    "video.mp4",
-    Path("subtitles.srt"),
-    speakers,
-    default_speaker,
-    Path("vocabular.txt"),
+SubtitlePipeline.create_video_with_english_audio(
+    video_path="video.mp4",
+    subtitle=Path("subtitles.srt"),
+    speakers=speakers_config,
+    default_speaker=speakers_config["en"],
+    vocabular=Path("VOICE/vocabular.txt"),
     acomponiment_coef=0.3,
     voice_coef=0.2,
     output_folder=Path("out"),
 )
 ```
+This wrapper wires up the same pipeline used by the CLI while allowing advanced dependency injection for testing. 【F:srt2audiotrack/pipeline.py†L372-L403】
 
-An example React GUI that works with this module is available in the `sub-edit` folder.
+## Troubleshooting
+- Verify the external CLIs are available:
+  ```bash
+  python -m whisper --help
+  python -m demucs.separate --help
+  python -m f5_tts.cli --help
+  ```
+- If a job is skipped with a lock warning, inspect the `.lock` file inside the subtitle output folder to confirm the active worker ID or delete stale locks after the timeout has elapsed. 【F:srt2audiotrack/pipeline.py†L33-L361】
 
-## Notes
-The `VOICE` subfolder should contain reference speaker audio files together with their texts and generated `speeds.csv` files. See `tests/one_voice` for an example structure.
+Happy dubbing!
