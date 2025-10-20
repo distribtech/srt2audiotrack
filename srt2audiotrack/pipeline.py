@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+import json
 import os
+import threading
+import time
 from collections.abc import Callable
+from contextlib import AbstractContextManager
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 import librosa
 
 from . import subtitle_csv
@@ -13,6 +20,128 @@ from . import sync_utils
 from . import audio_utils
 from . import ffmpeg_utils
 from . import vocabulary
+
+
+class PipelineLockError(RuntimeError):
+    """Base error raised for pipeline lock handling."""
+
+
+class ActivePipelineLockError(PipelineLockError):
+    """Raised when a lock already exists for a subtitle directory."""
+
+
+@dataclass
+class _LockConfig:
+    directory: Path
+    worker_id: str
+    heartbeat_interval: float
+    stale_timeout: float
+
+
+class _PipelineLock(AbstractContextManager[None]):
+    """Context manager that manages a lock file for a pipeline run."""
+
+    lock_filename = ".lock"
+
+    def __init__(self, config: _LockConfig) -> None:
+        self._config = config
+        self._lock_path = config.directory / self.lock_filename
+        self._payload: dict[str, str] | None = None
+        self._heartbeat_thread: Optional[threading.Thread] = None
+        self._stop_event = threading.Event()
+
+    def __enter__(self) -> None:  # type: ignore[override]
+        self._config.directory.mkdir(parents=True, exist_ok=True)
+        self._remove_stale_lock_if_needed()
+        self._acquire_lock()
+        self._start_heartbeat()
+
+    def __exit__(self, exc_type, exc, exc_tb) -> None:  # type: ignore[override]
+        self._stop_event.set()
+        if self._heartbeat_thread and self._heartbeat_thread.is_alive():
+            self._heartbeat_thread.join()
+        try:
+            self._lock_path.unlink(missing_ok=True)
+        except TypeError:
+            # Python < 3.8 compatibility (missing_ok not supported)
+            try:
+                if self._lock_path.exists():
+                    self._lock_path.unlink()
+            except FileNotFoundError:
+                pass
+
+    def _remove_stale_lock_if_needed(self) -> None:
+        if not self._lock_path.exists():
+            return
+        try:
+            mtime = self._lock_path.stat().st_mtime
+        except FileNotFoundError:
+            return
+        age = time.time() - mtime
+        if age <= self._config.stale_timeout:
+            raise ActivePipelineLockError(
+                f"Active lock found for {self._config.directory}."
+            )
+        stale_path = self._next_stale_path()
+        try:
+            self._lock_path.rename(stale_path)
+        except FileNotFoundError:
+            # Another worker may have moved/removed it.
+            pass
+
+    def _next_stale_path(self) -> Path:
+        base_name = self._lock_path.name + ".stale"
+        candidate = self._lock_path.with_name(base_name)
+        counter = 1
+        while candidate.exists():
+            candidate = self._lock_path.with_name(f"{base_name}{counter}")
+            counter += 1
+        return candidate
+
+    def _acquire_lock(self) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        self._payload = {
+            "worker_id": self._config.worker_id,
+            "timestamp": now,
+            "directory": str(self._config.directory),
+        }
+        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+        try:
+            fd = os.open(self._lock_path, flags)
+        except FileExistsError as exc:
+            raise ActivePipelineLockError(
+                f"Active lock found for {self._config.directory}."
+            ) from exc
+        with os.fdopen(fd, "w", encoding="utf-8") as lock_file:
+            json.dump(self._payload, lock_file)
+            lock_file.write("\n")
+
+    def _start_heartbeat(self) -> None:
+        self._heartbeat_thread = threading.Thread(
+            target=self._heartbeat_loop,
+            name=f"PipelineLockHeartbeat-{self._config.worker_id}",
+            daemon=True,
+        )
+        self._heartbeat_thread.start()
+
+    def _heartbeat_loop(self) -> None:
+        while not self._stop_event.wait(self._config.heartbeat_interval):
+            self._touch_lock()
+
+    def _touch_lock(self) -> None:
+        if self._payload is None:
+            return
+        self._payload["timestamp"] = datetime.now(timezone.utc).isoformat()
+        try:
+            with open(self._lock_path, "w", encoding="utf-8") as lock_file:
+                json.dump(self._payload, lock_file)
+                lock_file.write("\n")
+        except FileNotFoundError:
+            return
+        try:
+            os.utime(self._lock_path, None)
+        except FileNotFoundError:
+            pass
 
 class SubtitlePipeline:
     """Pipeline for generating English voice-over for a subtitle-video pair."""
@@ -78,8 +207,30 @@ class SubtitlePipeline:
         self.ffmpeg_utils = ffmpeg_utils_module
         self.librosa = librosa_module
 
-    def run(self, video_path: str) -> None:
+    def run(
+        self,
+        video_path: str,
+        *,
+        worker_id: str | None = None,
+        heartbeat_interval: float = 60.0,
+        lock_timeout: float = 1800.0,
+    ) -> None:
         self.directory.mkdir(parents=True, exist_ok=True)
+        if worker_id:
+            heartbeat_interval = max(heartbeat_interval, 1.0)
+            lock_timeout = max(lock_timeout, heartbeat_interval)
+            config = _LockConfig(
+                directory=self.directory,
+                worker_id=worker_id,
+                heartbeat_interval=heartbeat_interval,
+                stale_timeout=lock_timeout,
+            )
+            with _PipelineLock(config):
+                self._run_pipeline(video_path)
+        else:
+            self._run_pipeline(video_path)
+
+    def _run_pipeline(self, video_path: str) -> None:
         self._prepare_subtitles()
 
         self._convert_subs_to_audio()
@@ -181,6 +332,33 @@ class SubtitlePipeline:
                 self.stereo_eng_file,
                 self.mix_video,
             )
+
+    @staticmethod
+    def cleanup_stale_lock(directory: Path, lock_timeout: float) -> bool:
+        """Rename a stale lock file if it exceeds the timeout.
+
+        Returns ``True`` if a stale lock was found and renamed.
+        """
+
+        lock_path = directory / _PipelineLock.lock_filename
+        if not lock_path.exists():
+            return False
+        try:
+            mtime = lock_path.stat().st_mtime
+        except FileNotFoundError:
+            return False
+        if time.time() - mtime <= lock_timeout:
+            return False
+        stale_path = lock_path.with_name(lock_path.name + ".stale")
+        counter = 1
+        while stale_path.exists():
+            stale_path = lock_path.with_name(f"{lock_path.name}.stale{counter}")
+            counter += 1
+        try:
+            lock_path.rename(stale_path)
+        except FileNotFoundError:
+            return False
+        return True
 
     @staticmethod
     def list_subtitle_files(root_dir: str | Path, extension: str, exclude_ext: str) -> list[str]:
