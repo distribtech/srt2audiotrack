@@ -1,12 +1,37 @@
 # srt2audiotrack
 
-`srt2audiotrack` creates polished, multilingual voice-over tracks from subtitle files while keeping the original mix intact. It combines text normalisation, high-quality TTS synthesis, intelligent mixing, and FFmpeg-based mastering into a resumable pipeline that can be orchestrated across multiple workers.
+`srt2audiotrack` builds polished, multilingual voice-over tracks from subtitle files while keeping the original mix intact. The tooling now combines text normalisation, speaker-aware F5-TTS synthesis, Whisper-based validation, Demucs source separation, and FFmpeg mastering in a resumable pipeline that can fan out across multiple workers.
 
 ## Key capabilities
-- 🚀 **End-to-end pipeline** – automatically rewrites subtitles, generates aligned speech, balances against the original soundtrack, and delivers a muxed video output. 【F:srt2audiotrack/pipeline.py†L185-L333】
-- 🗣️ **Speaker-aware synthesis** – supports multiple reference voices with per-speaker speed curves derived from `speeds.csv` metadata. Missing curves are generated on-demand. 【F:srt2audiotrack/subtitle_csv.py†L137-L213】
-- 🧰 **Resumable by design** – every processing stage caches its artefacts so that interrupted runs simply pick up where they left off. 【F:srt2audiotrack/pipeline.py†L246-L333】
-- 📦 **Job manifests & locking** – optional manifest files let you queue work for farms of machines while cooperative lock files prevent duplicate processing. 【F:srt2audiotrack/cli.py†L77-L176】【F:srt2audiotrack/pipeline.py†L33-L361】
+- 🚀 **End-to-end pipeline** – rewrites subtitles, enriches CSV metadata, synthesises aligned narration, balances the mix, and renders a muxed video output. Every stage only runs when its artefact is missing so interrupted jobs pick up where they left off.【F:srt2audiotrack/pipeline.py†L210-L335】
+- 🗣️ **Speaker-aware synthesis** – per-speaker reference audio, transcripts, and speed curves drive F5-TTS segment generation; any missing `speeds.csv` files are generated automatically.【F:srt2audiotrack/subtitle_csv.py†L162-L214】
+- ✅ **Automatic quality checks** – generated speech is round-tripped through Whisper to confirm it matches the subtitle text. Mismatches are logged with similarity scores for manual review.【F:srt2audiotrack/tts_audio.py†L233-L305】
+- 📦 **Job manifests & cooperative locking** – manifests expand into ordered subtitle queues and per-job lock files prevent duplicate processing across workers, with automatic stale-lock recovery.【F:srt2audiotrack/cli.py†L26-L181】【F:srt2audiotrack/pipeline.py†L25-L361】
+
+## Architecture at a glance
+
+1. **Subtitle normalisation** – applies vocabulary substitutions and writes `_0_mod.srt`.【F:srt2audiotrack/pipeline.py†L246-L254】【F:srt2audiotrack/vocabulary.py†L5-L76】
+2. **CSV enrichment & speakers** – converts SRT to CSV, injects speaker columns, and assigns TTS speeds from speaker metadata.【F:srt2audiotrack/pipeline.py†L254-L276】【F:srt2audiotrack/subtitle_csv.py†L58-L199】
+3. **Segment synthesis & validation** – F5-TTS renders per-line audio, regenerating segments that are too short and flagging Whisper mismatches for audit spreadsheets.【F:srt2audiotrack/tts_audio.py†L200-L307】【F:srt2audiotrack/subtitle_csv.py†L218-L238】
+4. **Timing correction & stitching** – fixes CSV end-times from the generated waveforms and concatenates the mono narration into a full FLAC track before upmixing to stereo.【F:srt2audiotrack/pipeline.py†L278-L293】【F:srt2audiotrack/sync_utils.py†L8-L52】【F:srt2audiotrack/audio_utils.py†L83-L198】
+5. **Source separation & mixing** – extracts the original soundtrack, prepares a normalised accompaniment, applies interval-based gain curves, and muxes everything back with FFmpeg.【F:srt2audiotrack/pipeline.py†L295-L333】【F:srt2audiotrack/audio_utils.py†L24-L250】【F:srt2audiotrack/ffmpeg_utils.py†L1-L89】
+
+```
+┌────────────────────┐   ┌────────────────────┐   ┌────────────────────────┐
+│ Subtitle           │   │ CSV & speaker      │   │ Timing correction &     │
+│ normalisation      │──▶│ enrichment         │──▶│ narration stitching     │
+└────────────────────┘   └────────────────────┘   └────────────────────────┘
+              │                       │                          │
+              ▼                       ▼                          ▼
+       Vocabulary rules        Speaker metadata           FLAC narration
+              │                       │                          │
+              └────────────┬──────────┴──────────────┬───────────┘
+                           ▼                         ▼
+                   ┌────────────────────┐   ┌────────────────────┐
+                   │ Source audio prep  │   │ Dynamic mixing &   │
+                   │ (demucs, loudness) │──▶│ final muxing       │
+                   └────────────────────┘   └────────────────────┘
+```
 
 ## Installation
 1. Create and activate an environment (example using conda):
@@ -18,20 +43,20 @@
    ```bash
    pip install f5-tts demucs librosa soundfile numpy ffmpeg-python
    ```
-3. Install the project requirements:
+3. Install the project requirements (includes Whisper, Demucs, F5-TTS, FastAPI, etc.):
    ```bash
    pip install -r requirements.txt
    ```
 4. Ensure `ffmpeg` is available on your `PATH` for muxing and loudness normalisation.
 
 ## Preparing the `VOICE` library
-The CLI expects a `VOICE` subfolder alongside each subtitle/video set. Populate it with:
-- Reference `.wav` files for each speaker. 【F:srt2audiotrack/subtitle_csv.py†L162-L194】
-- Matching `.txt` transcripts so the tool can validate training text. 【F:srt2audiotrack/subtitle_csv.py†L196-L203】
-- Optional `speeds.csv` curves stored under a folder named after the speaker (generated automatically if missing). 【F:srt2audiotrack/subtitle_csv.py†L177-L213】
-- A shared `vocabular.txt` file for search/replace rules; it will be created if absent. 【F:srt2audiotrack/vocabulary.py†L5-L13】
+Each subtitle/video set should contain a neighbouring `VOICE/` directory with:
+- Reference `.wav` files for each speaker (the first one becomes the default).【F:srt2audiotrack/subtitle_csv.py†L162-L194】
+- Matching `.txt` transcripts so synthesis can validate reference text.【F:srt2audiotrack/subtitle_csv.py†L195-L203】
+- Optional `speeds.csv` envelopes per speaker; missing files are generated automatically using the F5-TTS helper.【F:srt2audiotrack/subtitle_csv.py†L200-L214】
+- A shared `vocabular.txt` file; it is created on demand if absent.【F:srt2audiotrack/vocabulary.py†L5-L13】
 
-See `tests/one_voice` for an example directory layout.
+See `tests/one_voice` for a minimal layout.
 
 ## Usage
 ### Quick start
@@ -45,11 +70,11 @@ python -m srt2audiotrack --subtitle path/to/video.srt
 ```
 
 ### Working with manifests and multiple workers
-- Use `--job-manifest-dir` to point to a directory containing plain-text job lists (one subtitle path per line, comments allowed). Duplicate paths are deduplicated automatically. 【F:srt2audiotrack/cli.py†L26-L41】【F:srt2audiotrack/cli.py†L77-L140】
-- Provide `--worker-id` (or rely on the hostname) so lock files record who owns a job. Locks refresh on a heartbeat and are reclaimed when stale, enabling safe restarts across machines. 【F:srt2audiotrack/cli.py†L85-L122】【F:srt2audiotrack/pipeline.py†L210-L361】
+- Use `--job-manifest-dir` to point at newline-delimited job files; relative paths are resolved next to the manifest and duplicates are automatically removed.【F:srt2audiotrack/cli.py†L26-L143】
+- Provide `--worker-id` (or rely on the hostname) so lock files record who owns a job. Locks refresh on a heartbeat and are reclaimed when stale, enabling safe restarts across machines.【F:srt2audiotrack/cli.py†L77-L181】【F:srt2audiotrack/pipeline.py†L25-L361】
 
 ### Output structure and resume behaviour
-For a subtitle named `example.srt`, intermediate files live under `OUTPUT/example/` while the final muxed video is written beside the subtitle (or into `--output_folder`). 【F:srt2audiotrack/pipeline.py†L171-L333】 The pipeline skips any step whose artefact already exists, so reruns only process missing stages.
+For a subtitle named `example.srt`, intermediate files live under `OUTPUT/example/` while the final muxed video is written beside the subtitle (or into `--output_folder`). The pipeline checks for each artefact before running a step, so reruns process only the missing stages.【F:srt2audiotrack/pipeline.py†L171-L335】
 
 ### Command line options
 | Option | Description | Default |
@@ -72,73 +97,19 @@ For a subtitle named `example.srt`, intermediate files live under `OUTPUT/exampl
 | `--lock-timeout` | Seconds before a lock is considered stale | `1800.0` |
 | `--lock-heartbeat` | Seconds between lock refreshes | `60.0` |
 
-(See `python -m srt2audiotrack --help` for the authoritative list.) 【F:srt2audiotrack/cli.py†L44-L123】
+(See `python -m srt2audiotrack --help` for the authoritative list.)【F:srt2audiotrack/cli.py†L44-L181】
 
-## What the pipeline does
-1. **Subtitle normalisation** – applies vocabulary replacements and prepares `_0_mod.srt`. 【F:srt2audiotrack/pipeline.py†L246-L254】
-2. **CSV enrichment** – adds speaker assignments and speed hints before triggering TTS generation. 【F:srt2audiotrack/pipeline.py†L254-L276】
-3. **Timing corrections & stitching** – fixes end times and builds a full FLAC narration track. 【F:srt2audiotrack/pipeline.py†L278-L293】
-4. **Source audio prep** – extracts and separates the original soundtrack, resampling and normalising the accompaniment. 【F:srt2audiotrack/pipeline.py†L295-L309】【F:srt2audiotrack/audio_utils.py†L24-L99】
-5. **Dynamic mixing** – applies interval-based volume shaping before muxing with FFmpeg. 【F:srt2audiotrack/pipeline.py†L311-L333】【F:srt2audiotrack/ffmpeg_utils.py†L1-L52】
+## Development & testing
+- Run the Python unit tests:
+  ```bash
+  pytest tests/unit
+  ```
+- Sample subtitle fixtures live in `tests/one_voice` and `tests/multi_voice`.
+- The `tests/test_whisper_metrics.py` script exercises the Whisper validation pipeline.
 
-## Scheme of work
+## Microservice-based demo (Docker)
 
-```
-┌────────────────────┐   ┌────────────────────┐   ┌────────────────────────┐
-│ Subtitle           │   │ CSV & speaker      │   │ Timing correction &     │
-│ normalisation      │──▶│ enrichment         │──▶│ narration stitching     │
-└────────────────────┘   └────────────────────┘   └────────────────────────┘
-              │                       │                          │
-              ▼                       ▼                          ▼
-       Vocabulary rules        Speaker metadata           FLAC narration
-              │                       │                          │
-              └────────────┬──────────┴──────────────┬───────────┘
-                           ▼                         ▼
-                   ┌────────────────────┐   ┌────────────────────┐
-                   │ Source audio prep  │   │ Dynamic mixing &   │
-                   │ (demucs, loudness) │──▶│ final muxing       │
-                   └────────────────────┘   └────────────────────┘
-```
-
-## Multi-application orchestration
-
-The pipeline coordinates several cooperating processes and external tools. The following
-ASCII sketch shows how manifests, workers, and helper applications interact when processing
-jobs in parallel:
-
-```
-┌──────────────────────────┐        ┌──────────────────────────┐
-│ Manifest directory       │  fan   │   Worker processes       │
-│ (*.txt job lists)        │──out──▶│ (CLI invocations, one    │
-└──────────────────────────┘        │  per machine/container)   │
-        ▲                           └──────────────────────────┘
-        │                                   │
-        │ reload manifests                  │ acquire lock per job
-        │                                   ▼
-┌──────────────────────────┐        ┌──────────────────────────┐
-│ Lock files (*.lock)      │◀──────▶│ Pipeline coordinator     │
-│ (ownership + heartbeat)  │        │ (Python pipeline stages) │
-└──────────────────────────┘        └──────────────────────────┘
-                                            │
-                                            │ dispatches work units
-                                            ▼
-       ┌─────────────┬─────────────┬──────────────┬──────────────┐
-       │ Vocabulary  │ TTS engine  │ Demucs/FFmpeg│ Mixdown/FFmpeg│
-       │ management  │ (f5-tts)    │ separation   │ mux & export  │
-       └─────────────┴─────────────┴──────────────┴──────────────┘
-```
-
-Each worker watches the manifest directory and claims available jobs by touching or updating
-the corresponding `.lock` file. The lock stores the worker ID and heartbeat timestamps so
-that other workers can safely skip in-progress work or reclaim stale jobs. The pipeline
-continues through the normalisation, synthesis, separation, and muxing stages, delegating
-to specialised apps such as `demucs` and `ffmpeg` where needed.
-
-## Microservice-based web application (Docker)
-
-In addition to the CLI module (`python -m srt2audiotrack`), the repository now ships with a
-microservice-oriented demo web application under `srt2audiotrack-docker/`. The compose stack
-splits the responsibilities across four containers:
+The repository ships with a microservice-oriented demo web application under `srt2audiotrack-docker/`. The compose stack splits the responsibilities across four containers:
 
 | Service | Role | Exposed port | Notes |
 |---------|------|--------------|-------|
@@ -161,9 +132,6 @@ docker compose build
 docker compose build --pull
 ```
 
-The command builds four tagged images (`tts_service`, `demucs_service`, `subtitles_service`, and
-`orchestrator`) that you can inspect with `docker images`.
-
 ### Running the stack
 
 ```bash
@@ -173,9 +141,7 @@ docker compose up
 docker compose up -d
 ```
 
-The orchestrator UI becomes available at <http://localhost:8000>. Submit text (and optional subtitle
-snippets) to exercise the round-trip across the TTS, Demucs, and subtitle vocabulary services. Named
-volumes persist generated audio and the SQLite database between runs.
+The orchestrator UI becomes available at <http://localhost:8000>. Submit text (and optional subtitle snippets) to exercise the round-trip across the TTS, Demucs, and subtitle vocabulary services. Named volumes persist generated audio and the SQLite database between runs.
 
 To stop the stack and remove containers, run:
 
@@ -185,8 +151,7 @@ docker compose down
 
 ### Using the Docker images elsewhere
 
-All services follow the twelve-factor pattern and expose a FastAPI app on the ports listed above.
-Once built, you can reuse the images in other compose files or orchestration platforms. For example:
+All services expose a FastAPI app on the ports listed above. Once built, you can reuse the images in other compose files or orchestration platforms. For example:
 
 ```bash
 docker run --rm -p 9000:8001 tts_service
@@ -199,20 +164,13 @@ docker run --rm -p 9003:8000 \
   orchestrator
 ```
 
-With the containers running, the CLI module remains available in parallel. You can keep using
-`python -m srt2audiotrack` for offline batch conversion while the web UI handles ad-hoc previews.
+With the containers running, the CLI module remains available in parallel for offline batch conversion.
 
 ### Working with `.lock` files
 
-- **Inspection** – Lock files live beside the subtitle output directory (e.g.
-  `OUTPUT/example/example.lock`). They are plain text and can be opened to check the
-  current owner, timestamps, and heartbeat interval.
-- **Refreshing** – Active workers refresh their lock on a background heartbeat. If a
-  worker is terminated unexpectedly, the lock becomes stale after `--lock-timeout`
-  seconds and other workers will automatically reclaim the job.
-- **Manual recovery** – When coordinating manually, you can delete a stale lock file if
-  you are certain no other worker is operating on the job. Upon the next manifest scan,
-  an available worker will obtain a fresh lock and resume from cached artefacts.
+- **Inspection** – Lock files live beside the subtitle output directory (e.g. `OUTPUT/example/example.lock`). They are plain text and record the current worker ID, timestamps, and heartbeat interval.
+- **Refreshing** – Active workers refresh their lock on a background heartbeat. If a worker stops unexpectedly the lock becomes stale after `--lock-timeout` seconds and other workers automatically reclaim the job.【F:srt2audiotrack/pipeline.py†L25-L144】
+- **Manual recovery** – When coordinating manually, you can delete or rename a stale lock file if you are sure no other worker is operating on the job. On the next manifest scan, an available worker obtains a fresh lock and resumes from cached artefacts.
 
 ## Python API
 Use the high-level helper to invoke the pipeline programmatically:
@@ -231,7 +189,7 @@ SubtitlePipeline.create_video_with_english_audio(
     output_folder=Path("out"),
 )
 ```
-This wrapper wires up the same pipeline used by the CLI while allowing advanced dependency injection for testing. 【F:srt2audiotrack/pipeline.py†L372-L403】
+This wrapper wires up the same pipeline used by the CLI while allowing advanced dependency injection for testing.【F:srt2audiotrack/pipeline.py†L372-L403】
 
 ## Troubleshooting
 - Verify the external CLIs are available:
@@ -240,6 +198,6 @@ This wrapper wires up the same pipeline used by the CLI while allowing advanced 
   python -m demucs.separate --help
   python -m f5_tts.cli --help
   ```
-- If a job is skipped with a lock warning, inspect the `.lock` file inside the subtitle output folder to confirm the active worker ID or delete stale locks after the timeout has elapsed. 【F:srt2audiotrack/pipeline.py†L33-L361】
+- If a job is skipped with a lock warning, inspect the `.lock` file inside the subtitle output folder to confirm the active worker ID or delete stale locks after the timeout has elapsed.【F:srt2audiotrack/pipeline.py†L25-L361】
 
 Happy dubbing!
