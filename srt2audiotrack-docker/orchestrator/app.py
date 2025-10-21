@@ -16,6 +16,7 @@ templates = Jinja2Templates(directory="templates")
 TTS_URL = os.getenv("TTS_URL", "http://tts_service:8001")
 DEMUCS_URL = os.getenv("DEMUCS_URL", "http://demucs_service:8002")
 SUBTITLES_URL = os.getenv("SUBTITLES_URL", "http://subtitles_service:8003")
+WHISPER_URL = os.getenv("WHISPER_URL", "http://whisper_service:8004")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -45,6 +46,12 @@ async def process(
         else:
             vocabulary = None
 
+        whisper_result = await _maybe_post_json(
+            client,
+            f"{WHISPER_URL}/analyze",
+            {"audio_b64": tts_response["audio_b64"], "reference_text": text},
+        )
+
     decoded_audio_len = len(base64.b64decode(tts_response["audio_b64"]))
     result = {
         "speaker": tts_response["speaker"],
@@ -52,6 +59,7 @@ async def process(
         "demucs_tracks": demucs_response["tracks"],
         "subtitle_result": subtitle_result,
         "vocabulary": vocabulary,
+        "whisper_evaluation": whisper_result,
         "audio_bytes": decoded_audio_len,
     }
 
@@ -68,6 +76,15 @@ async def _get_json(client: httpx.AsyncClient, url: str) -> dict[str, Any]:
     response = await client.get(url)
     response.raise_for_status()
     return response.json()
+
+
+async def _maybe_post_json(
+    client: httpx.AsyncClient, url: str, payload: dict[str, Any]
+) -> dict[str, Any] | None:
+    try:
+        return await _post_json(client, url, payload)
+    except httpx.HTTPError:
+        return None
 
 
 @app.get("/health")

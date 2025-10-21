@@ -114,6 +114,27 @@
         </tbody>
       </table>
       {% endif %}
+
+      {% if result.whisper_evaluation %}
+      <h3>Whisper quality assurance</h3>
+      <p>
+        Engine: {{ result.whisper_evaluation.engine }}<br />
+        Word error rate: {{ '%.2f' | format(result.whisper_evaluation.word_error_rate) }}<br />
+        Character error rate: {{ '%.2f' | format(result.whisper_evaluation.character_error_rate) }}
+      </p>
+      {% if result.whisper_evaluation.notes %}
+      <p><em>{{ result.whisper_evaluation.notes }}</em></p>
+      {% endif %}
+      {% if result.whisper_evaluation.transcription %}
+      <p><strong>Transcription:</strong> {{ result.whisper_evaluation.transcription }}</p>
+      {% endif %}
+      {% if result.whisper_evaluation.missing_words %}
+      <p><strong>Missing words:</strong> {{ result.whisper_evaluation.missing_words | join(', ') }}</p>
+      {% endif %}
+      {% if result.whisper_evaluation.extra_words %}
+      <p><strong>Unexpected words:</strong> {{ result.whisper_evaluation.extra_words | join(', ') }}</p>
+      {% endif %}
+      {% endif %}
     </div>
     {% endif %}
   </body>

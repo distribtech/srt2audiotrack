@@ -23,6 +23,11 @@ services:
       - "8003:8003"
     volumes:
       - subtitles_data:/data
+  whisper_service:
+    build: ./whisper_service
+    container_name: whisper_service
+    ports:
+      - "8004:8004"
   orchestrator:
     build: ./orchestrator
     container_name: orchestrator
@@ -30,10 +35,12 @@ services:
       - tts_service
       - demucs_service
       - subtitles_service
+      - whisper_service
     environment:
       TTS_URL: http://tts_service:8001
       DEMUCS_URL: http://demucs_service:8002
       SUBTITLES_URL: http://subtitles_service:8003
+      WHISPER_URL: http://whisper_service:8004
     ports:
       - "8000:8000"
 
