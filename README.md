@@ -100,6 +100,52 @@ For a subtitle named `example.srt`, intermediate files live under `OUTPUT/exampl
                    └────────────────────┘   └────────────────────┘
 ```
 
+## Multi-application orchestration
+
+The pipeline coordinates several cooperating processes and external tools. The following
+ASCII sketch shows how manifests, workers, and helper applications interact when processing
+jobs in parallel:
+
+```
+┌──────────────────────────┐        ┌──────────────────────────┐
+│ Manifest directory       │  fan   │   Worker processes       │
+│ (*.txt job lists)        │──out──▶│ (CLI invocations, one    │
+└──────────────────────────┘        │  per machine/container)   │
+        ▲                           └──────────────────────────┘
+        │                                   │
+        │ reload manifests                  │ acquire lock per job
+        │                                   ▼
+┌──────────────────────────┐        ┌──────────────────────────┐
+│ Lock files (*.lock)      │◀──────▶│ Pipeline coordinator     │
+│ (ownership + heartbeat)  │        │ (Python pipeline stages) │
+└──────────────────────────┘        └──────────────────────────┘
+                                            │
+                                            │ dispatches work units
+                                            ▼
+       ┌─────────────┬─────────────┬──────────────┬──────────────┐
+       │ Vocabulary  │ TTS engine  │ Demucs/FFmpeg│ Mixdown/FFmpeg│
+       │ management  │ (f5-tts)    │ separation   │ mux & export  │
+       └─────────────┴─────────────┴──────────────┴──────────────┘
+```
+
+Each worker watches the manifest directory and claims available jobs by touching or updating
+the corresponding `.lock` file. The lock stores the worker ID and heartbeat timestamps so
+that other workers can safely skip in-progress work or reclaim stale jobs. The pipeline
+continues through the normalisation, synthesis, separation, and muxing stages, delegating
+to specialised apps such as `demucs` and `ffmpeg` where needed.
+
+### Working with `.lock` files
+
+- **Inspection** – Lock files live beside the subtitle output directory (e.g.
+  `OUTPUT/example/example.lock`). They are plain text and can be opened to check the
+  current owner, timestamps, and heartbeat interval.
+- **Refreshing** – Active workers refresh their lock on a background heartbeat. If a
+  worker is terminated unexpectedly, the lock becomes stale after `--lock-timeout`
+  seconds and other workers will automatically reclaim the job.
+- **Manual recovery** – When coordinating manually, you can delete a stale lock file if
+  you are certain no other worker is operating on the job. Upon the next manifest scan,
+  an available worker will obtain a fresh lock and resume from cached artefacts.
+
 ## Python API
 Use the high-level helper to invoke the pipeline programmatically:
 ```python
