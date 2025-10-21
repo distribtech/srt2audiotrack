@@ -134,6 +134,74 @@ that other workers can safely skip in-progress work or reclaim stale jobs. The p
 continues through the normalisation, synthesis, separation, and muxing stages, delegating
 to specialised apps such as `demucs` and `ffmpeg` where needed.
 
+## Microservice-based web application (Docker)
+
+In addition to the CLI module (`python -m srt2audiotrack`), the repository now ships with a
+microservice-oriented demo web application under `srt2audiotrack-docker/`. The compose stack
+splits the responsibilities across four containers:
+
+| Service | Role | Exposed port | Notes |
+|---------|------|--------------|-------|
+| `tts_service` | Generates mock narration audio from plain text. | `8001` | Coordinates synthesis with a `.lock` file. |
+| `demucs_service` | Performs a lightweight Demucs-style source separation. | `8002` | Uses a `.lock` for its workspace. |
+| `subtitles_service` | Stores subtitle vocabulary in a SQLite database. | `8003` | Uses a `.lock` for SQLite writes. |
+| `orchestrator` | Web UI that orchestrates the three backend services. | `8000` | HTTP frontend for the services. |
+
+### Prerequisites
+
+- Docker Engine 20.10+
+- Docker Compose v2 (`docker compose` CLI)
+
+### Building the images
+
+```bash
+cd srt2audiotrack-docker
+docker compose build
+# or refresh the base images first
+docker compose build --pull
+```
+
+The command builds four tagged images (`tts_service`, `demucs_service`, `subtitles_service`, and
+`orchestrator`) that you can inspect with `docker images`.
+
+### Running the stack
+
+```bash
+cd srt2audiotrack-docker
+docker compose up
+# Run in detached mode once you are happy with the logs:
+docker compose up -d
+```
+
+The orchestrator UI becomes available at <http://localhost:8000>. Submit text (and optional subtitle
+snippets) to exercise the round-trip across the TTS, Demucs, and subtitle vocabulary services. Named
+volumes persist generated audio and the SQLite database between runs.
+
+To stop the stack and remove containers, run:
+
+```bash
+docker compose down
+```
+
+### Using the Docker images elsewhere
+
+All services follow the twelve-factor pattern and expose a FastAPI app on the ports listed above.
+Once built, you can reuse the images in other compose files or orchestration platforms. For example:
+
+```bash
+docker run --rm -p 9000:8001 tts_service
+docker run --rm -p 9001:8002 demucs_service
+docker run --rm -p 9002:8003 subtitles_service
+docker run --rm -p 9003:8000 \
+  -e TTS_URL=http://host.docker.internal:9000 \
+  -e DEMUCS_URL=http://host.docker.internal:9001 \
+  -e SUBTITLES_URL=http://host.docker.internal:9002 \
+  orchestrator
+```
+
+With the containers running, the CLI module remains available in parallel. You can keep using
+`python -m srt2audiotrack` for offline batch conversion while the web UI handles ad-hoc previews.
+
 ### Working with `.lock` files
 
 - **Inspection** – Lock files live beside the subtitle output directory (e.g.

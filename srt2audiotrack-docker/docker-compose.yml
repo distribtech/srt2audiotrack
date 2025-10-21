@@ -1,0 +1,43 @@
+version: "3.9"
+services:
+  tts_service:
+    build: ./tts_service
+    container_name: tts_service
+    ports:
+      - "8001:8001"
+    volumes:
+      - tts_data:/data
+  demucs_service:
+    build: ./demucs_service
+    container_name: demucs_service
+    ports:
+      - "8002:8002"
+    volumes:
+      - demucs_data:/data
+    depends_on:
+      - tts_service
+  subtitles_service:
+    build: ./subtitles_service
+    container_name: subtitles_service
+    ports:
+      - "8003:8003"
+    volumes:
+      - subtitles_data:/data
+  orchestrator:
+    build: ./orchestrator
+    container_name: orchestrator
+    depends_on:
+      - tts_service
+      - demucs_service
+      - subtitles_service
+    environment:
+      TTS_URL: http://tts_service:8001
+      DEMUCS_URL: http://demucs_service:8002
+      SUBTITLES_URL: http://subtitles_service:8003
+    ports:
+      - "8000:8000"
+
+volumes:
+  tts_data:
+  demucs_data:
+  subtitles_data:

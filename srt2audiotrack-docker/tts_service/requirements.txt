@@ -1,0 +1,6 @@
+fastapi==0.110.0
+uvicorn[standard]==0.29.0
+filelock==3.13.1
+pydantic==1.10.14
+numpy==1.26.4
+soundfile==0.12.1

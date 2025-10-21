@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>srt2audiotrack Orchestrator</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 2rem;
+        background: #f8f9fa;
+      }
+      form {
+        background: #ffffff;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+      }
+      textarea,
+      input,
+      select {
+        width: 100%;
+        padding: 0.5rem;
+        margin-top: 0.5rem;
+        margin-bottom: 1rem;
+        border-radius: 4px;
+        border: 1px solid #ced4da;
+      }
+      button {
+        padding: 0.75rem 1.5rem;
+        background-color: #0d6efd;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:hover {
+        background-color: #0b5ed7;
+      }
+      .result {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 0.5rem;
+        border-bottom: 1px solid #dee2e6;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>srt2audiotrack microservice orchestrator</h1>
+    <form method="post" action="/process">
+      <label for="text">Text to synthesise</label>
+      <textarea id="text" name="text" rows="4" required></textarea>
+
+      <label for="speaker">Speaker preset</label>
+      <select id="speaker" name="speaker">
+        <option value="neutral">Neutral</option>
+        <option value="energetic">Energetic</option>
+      </select>
+
+      <label for="subtitles">Subtitle sample (optional)</label>
+      <textarea id="subtitles" name="subtitles" rows="6"></textarea>
+
+      <button type="submit">Generate</button>
+    </form>
+
+    {% if result %}
+    <div class="result">
+      <h2>Result</h2>
+      <p><strong>Speaker:</strong> {{ result.speaker }}</p>
+      <p><strong>Generated audio path:</strong> {{ result.audio_path }}</p>
+      <p><strong>Audio payload size:</strong> {{ result.audio_bytes }} bytes</p>
+
+      <h3>Demucs tracks</h3>
+      <ul>
+        {% for name, path in result.demucs_tracks.items() %}
+        <li><strong>{{ name }}:</strong> {{ path }}</li>
+        {% endfor %}
+      </ul>
+
+      {% if result.subtitle_result %}
+      <h3>Subtitle statistics</h3>
+      <p>
+        Unique tokens: {{ result.subtitle_result.unique_tokens }}<br />
+        Total tokens ingested: {{ result.subtitle_result.total_tokens }}
+      </p>
+      {% endif %}
+
+      {% if result.vocabulary %}
+      <h3>Vocabulary</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Token</th>
+            <th>Occurrences</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for token, count in result.vocabulary.tokens %}
+          <tr>
+            <td>{{ token }}</td>
+            <td>{{ count }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+    {% endif %}
+  </body>
+</html>
