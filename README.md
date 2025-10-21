@@ -81,6 +81,25 @@ For a subtitle named `example.srt`, intermediate files live under `OUTPUT/exampl
 4. **Source audio prep** – extracts and separates the original soundtrack, resampling and normalising the accompaniment. 【F:srt2audiotrack/pipeline.py†L295-L309】【F:srt2audiotrack/audio_utils.py†L24-L99】
 5. **Dynamic mixing** – applies interval-based volume shaping before muxing with FFmpeg. 【F:srt2audiotrack/pipeline.py†L311-L333】【F:srt2audiotrack/ffmpeg_utils.py†L1-L52】
 
+## Scheme of work
+
+```
+┌────────────────────┐   ┌────────────────────┐   ┌────────────────────────┐
+│ Subtitle           │   │ CSV & speaker      │   │ Timing correction &     │
+│ normalisation      │──▶│ enrichment         │──▶│ narration stitching     │
+└────────────────────┘   └────────────────────┘   └────────────────────────┘
+              │                       │                          │
+              ▼                       ▼                          ▼
+       Vocabulary rules        Speaker metadata           FLAC narration
+              │                       │                          │
+              └────────────┬──────────┴──────────────┬───────────┘
+                           ▼                         ▼
+                   ┌────────────────────┐   ┌────────────────────┐
+                   │ Source audio prep  │   │ Dynamic mixing &   │
+                   │ (demucs, loudness) │──▶│ final muxing       │
+                   └────────────────────┘   └────────────────────┘
+```
+
 ## Python API
 Use the high-level helper to invoke the pipeline programmatically:
 ```python
